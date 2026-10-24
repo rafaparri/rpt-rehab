@@ -127,7 +127,7 @@ const CONFIG = {
   appId: "1:439754311440:web:2a6ad9137640cd27884795"
 };
 const COACH_EMAIL = 'rafa.parri@gmail.com';
-const VERSION = 'v2.1 · 24 oct 2026';
+const VERSION = 'v2.2 · 24 oct 2026';
 const FB = '10.12.2';
 
 /* ============ Utilidades ============ */
@@ -531,8 +531,11 @@ function vistaPaciente() {
   if (d.enviada) h += `<div class="ok">Sesión enviada. Si algo está mal, corrígelo y vuelve a enviarla.</div>`;
   h += `<div class="aviso" style="font-size:16px">Calzado cerrado siempre y alguien al lado en el equilibrio. Si hay dolor fuerte, mareo o una caída, para.</div>`;
 
-  dia.bloques.forEach(b => {
-    h += `<h2>${esc(b.t)}</h2><p class="soft">${esc(b.i)}</p>`;
+  dia.bloques.forEach((b, bi) => {
+    const sets = b.items.flatMap(it => (d.ej[it.id] ? d.ej[it.id].sets : []));
+    const todo = sets.length > 0 && sets.every(s => s.hecho);
+    h += `<h2>${esc(b.t)}</h2><p class="soft">${esc(b.i)}</p>
+      <button type="button" class="btn mini ${todo ? '' : 'pri'}" style="margin-bottom:6px" data-act="bloque" data-b="${bi}">${todo ? 'Desmarcar todo el bloque' : '✓ Marcar todo el bloque como hecho'}</button>`;
     b.items.forEach(it => {
       const e = d.ej[it.id];
       if (!e) return;
@@ -799,6 +802,13 @@ document.addEventListener('click', async ev => {
       guardarLocal(); return render();
     }
     case 'hecho': { const s = d.ej[b.dataset.ej].sets[+b.dataset.i]; s.hecho = !s.hecho; guardarLocal(); return render(); }
+    case 'bloque': {
+      const dia = diaSel(semanaSel().w), bl = dia.bloques[+b.dataset.b];
+      const sets = bl.items.flatMap(it => (d.ej[it.id] ? d.ej[it.id].sets : []));
+      const marcar = !sets.every(s => s.hecho);
+      sets.forEach(s => { s.hecho = marcar; });
+      guardarLocal(); return render();
+    }
     case 'fatiga': d.fatiga = +v; S.aviso = ''; guardarLocal(); return render();
     case 'dolor': d.dolor.hay = (v === 'si'); S.aviso = ''; guardarLocal(); return render();
     case 'entum': d.entum.hay = (v === 'si'); S.aviso = ''; guardarLocal(); return render();
