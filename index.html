@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#2F5D57">
+<title>RPT Rehab</title>
+<style>
+  :root {
+    --bg:#F6F8F7; --card:#FFFFFF; --ink:#1E332F; --soft:#4B615C; --line:#D8E2DF;
+    --teal:#2F5D57; --teal2:#E4EEEC; --warn:#B5563F; --warn2:#F7E9E5; --alt:#F1F5F4;
+    --on:#FFFFFF; --ok:#2E7D4F;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#16211E; --card:#1E2C28; --ink:#EDF3F1; --soft:#A9BDB7; --line:#35453F;
+      --teal:#6FAE9F; --teal2:#253B36; --warn:#E08A72; --warn2:#3A2620; --alt:#223330;
+      --on:#10201C; --ok:#7BCB98;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:19px; line-height:1.45; padding-bottom:50px;
+  }
+  .wrap { max-width:720px; margin:0 auto; padding:0 14px; }
+  h1 { font-size:26px; margin:0; color:var(--teal); }
+  h2 { font-size:21px; margin:22px 0 4px; color:var(--teal); }
+  h3 { font-size:19px; margin:0 0 6px; }
+  p { margin:0 0 10px; }
+  .soft { color:var(--soft); font-size:16px; }
+  .small { font-size:14px; color:var(--soft); }
+  button { font-family:inherit; cursor:pointer; color:var(--ink); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
+    outline:3px solid var(--teal); outline-offset:2px;
+  }
+  .top { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 0; }
+  .top .wrap { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .top .quien { font-size:14px; color:var(--soft); word-break:break-all; }
+  .btn {
+    display:block; width:100%; min-height:56px; padding:14px 16px; font-size:19px; font-weight:700;
+    border-radius:12px; border:1.5px solid var(--teal); background:var(--card); color:var(--teal); text-align:center;
+  }
+  .btn.pri { background:var(--teal); color:var(--on); }
+  .btn.warn { border-color:var(--warn); color:var(--warn); }
+  .btn.mini { width:auto; min-height:44px; padding:8px 14px; font-size:16px; display:inline-block; }
+  .btn[disabled] { opacity:.55; cursor:default; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin:14px 0; }
+  .aviso { background:var(--warn2); border:1px solid var(--warn); border-radius:12px; padding:12px 14px; margin:14px 0; font-size:17px; }
+  .ok { background:var(--teal2); border:1px solid var(--teal); border-radius:12px; padding:12px 14px; margin:14px 0; font-size:17px; }
+  label.lab, .lab { display:block; font-size:15px; color:var(--soft); margin-bottom:4px; }
+  input[type=email], input[type=text], input[type=date], textarea, select {
+    width:100%; min-height:54px; padding:12px 14px; font-size:19px; font-family:inherit;
+    border:1.5px solid var(--line); border-radius:12px; background:var(--alt); color:var(--ink);
+  }
+  textarea { min-height:100px; resize:vertical; }
+  .tabs { display:grid; gap:6px; margin:14px 0; }
+  .tab {
+    min-height:58px; padding:6px 4px; border-radius:12px; border:1.5px solid var(--line); background:var(--card);
+    font-size:17px; font-weight:700; line-height:1.15;
+  }
+  .tab small { display:block; font-weight:500; font-size:13px; color:var(--soft); }
+  .tab.on { background:var(--teal); border-color:var(--teal); color:var(--on); }
+  .tab.on small { color:var(--on); }
+  .tab .hecho { color:var(--ok); }
+  .tab.on .hecho { color:var(--on); }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0; }
+  .it-n { font-weight:700; font-size:20px; }
+  .it-d { color:var(--soft); font-size:16px; margin-bottom:6px; }
+  .serie { border-top:1px solid var(--line); padding:10px 0 4px; }
+  .serie .cab { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; font-weight:700; }
+  .serie.hecha { background:var(--teal2); border-radius:10px; padding:10px 8px 6px; margin:4px -8px; }
+  .hbtn {
+    min-height:50px; min-width:132px; padding:8px 14px; font-size:18px; font-weight:700;
+    border-radius:12px; border:1.5px solid var(--teal); background:var(--card); color:var(--teal);
+  }
+  .hbtn.on { background:var(--teal); color:var(--on); }
+  .steps { display:flex; flex-wrap:wrap; gap:10px 14px; }
+  .step { }
+  .ctl { display:flex; align-items:center; gap:6px; }
+  .ctl button {
+    width:52px; height:52px; font-size:28px; line-height:1; border-radius:12px;
+    border:1.5px solid var(--line); background:var(--alt);
+  }
+  .ctl output { min-width:60px; text-align:center; font-size:24px; font-weight:700; }
+  .ctl output small { font-size:13px; font-weight:500; color:var(--soft); margin-left:2px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 14px; }
+  .chip {
+    min-height:52px; padding:10px 16px; font-size:18px; border-radius:12px;
+    border:1.5px solid var(--line); background:var(--alt);
+  }
+  .chip.num { min-width:50px; padding:10px 0; }
+  .chip.on { background:var(--teal); border-color:var(--teal); color:var(--on); font-weight:700; }
+  .prog { font-size:16px; color:var(--soft); margin:6px 0 0; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:14px; font-weight:700; margin:2px 4px 2px 0; }
+  .badge.rev { background:var(--teal2); color:var(--teal); }
+  .badge.pen { background:var(--warn2); color:var(--warn); }
+  details.ses { background:var(--card); border:1px solid var(--line); border-radius:14px; margin:10px 0; padding:0; }
+  details.ses > summary { padding:14px; cursor:pointer; list-style:none; }
+  details.ses > summary::-webkit-details-marker { display:none; }
+  details.ses .cuerpo { padding:0 14px 14px; border-top:1px solid var(--line); }
+  table.res { width:100%; border-collapse:collapse; font-size:16px; margin:8px 0; }
+  table.res td { padding:6px 4px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.res td:first-child { font-weight:600; width:46%; }
+  .pie { text-align:center; margin-top:30px; }
+  noscript { display:block; padding:20px; }
+</style>
+</head>
+<body>
+<noscript>Esta aplicación necesita JavaScript.</noscript>
+<div id="app"></div>
+
+<script type="module">
+/* ============ Configuración ============ */
+const CONFIG = {
+  apiKey: "AIzaSyCQrC3JzM_35cageHvh5kiZREaX_GK9Bs4",
+  authDomain: "rpt-rehab.firebaseapp.com",
+  projectId: "rpt-rehab",
+  storageBucket: "rpt-rehab.firebasestorage.app",
+  messagingSenderId: "439754311440",
+  appId: "1:439754311440:web:2a6ad9137640cd27884795"
+};
+const COACH_EMAIL = 'rafa.parri@gmail.com';
+const VERSION = 'v1.0 · 24 oct 2026';
+const FB = '10.12.2';
+
+/* ============ Utilidades ============ */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+const pad = n => String(n).padStart(2, '0');
+const isoFecha = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const hoy = () => isoFecha(new Date());
+const parseF = f => { const [y, m, d] = f.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDias = (f, n) => { const d = parseF(f); d.setDate(d.getDate() + n); return isoFecha(d); };
+const lunesDe = f => { const d = parseF(f); const wd = (d.getDay() + 6) % 7; return addDias(f, -wd); };
+const DIAS_LARGO = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const DIAS_CORTO = ['dom','lun','mar','mié','jue','vie','sáb'];
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const ID_DIA = ['dom','lun','mar','mie','jue','vie','sab'];
+const fechaCorta = f => { const d = parseF(f); return DIAS_CORTO[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; };
+const fmt = n => String(Math.round(n * 10) / 10).replace('.', ',');
+const clonar = o => JSON.parse(JSON.stringify(o));
+const ahora = () => new Date().toISOString();
+
+const STEP = { reps: 1, kg: 0.5, seg: 5, m: 50, min: 5 };
+const MAX = { reps: 99, kg: 200, seg: 900, m: 3000, min: 240 };
+const ZONAS = ['Pies', 'Piernas', 'Muslos', 'Manos', 'Otra zona'];
+const CUANDO = ['Durante el ejercicio', 'Al terminar', 'Más tarde'];
+
+/* ============ Estado ============ */
+const S = {
+  view: 'cargando', B: null, user: null, role: null, enlace: false,
+  plan: null, sesiones: [], consent: null,
+  fecha: hoy(), diaId: null, draft: null, tabP: 'hoy', tabC: 'sesiones', filtro: 'pend',
+  msg: '', aviso: '', lastSend: 0, email: store.get('rpt_email') || '', unsub: [], sent: null,
+  abiertas: {}, coms: {}
+};
+
+/* ============ Backend Firebase ============ */
+async function crearBackendFirebase() {
+  const base = 'https://www.gstatic.com/firebasejs/' + FB + '/';
+  const [appM, authM, fsM] = await Promise.all([
+    import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')
+  ]);
+  const app = appM.initializeApp(CONFIG);
+  const auth = authM.getAuth(app);
+  const dbx = fsM.getFirestore(app);
+  const ref = (c, id) => fsM.doc(dbx, c, id);
+  return {
+    auth: {
+      onChange: cb => authM.onAuthStateChanged(auth, u => cb(u ? { email: (u.email || '').toLowerCase(), verified: u.emailVerified } : null)),
+      sendLink: email => authM.sendSignInLinkToEmail(auth, email, { url: location.origin + location.pathname, handleCodeInApp: true }),
+      isLink: () => authM.isSignInWithEmailLink(auth, location.href),
+      finishLink: email => authM.signInWithEmailLink(auth, email, location.href),
+      signOut: () => authM.signOut(auth)
+    },
+    db: {
+      get: async (c, id) => { const s = await fsM.getDoc(ref(c, id)); return s.exists() ? s.data() : null; },
+      set: (c, id, data) => fsM.setDoc(ref(c, id), data),
+      update: (c, id, data) => fsM.updateDoc(ref(c, id), data),
+      watchDoc: (c, id, cb, err) => fsM.onSnapshot(ref(c, id), s => cb(s.exists() ? s.data() : null), err),
+      watchCol: (c, cb, err) => fsM.onSnapshot(fsM.collection(dbx, c), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), err),
+      list: async c => { const s = await fsM.getDocs(fsM.collection(dbx, c)); return s.docs.map(d => ({ id: d.id, ...d.data() })); }
+    }
+  };
+}
+
+/* ============ Arranque y acceso ============ */
+async function arrancar() {
+  try {
+    S.B = window.__RPT_BACKEND__ || await crearBackendFirebase();
+  } catch (e) {
+    S.view = 'error'; return render();
+  }
+  S.B.auth.onChange(onUser);
+  if (S.B.auth.isLink()) {
+    S.enlace = true;
+    if (S.email) completarEnlace(S.email);
+    else { S.view = 'confirmar'; render(); }
+  }
+}
+
+async function completarEnlace(email) {
+  S.view = 'cargando'; render();
+  try {
+    await S.B.auth.finishLink(email);
+    S.email = email; store.set('rpt_email', email);
+    history.replaceState(null, '', location.pathname);
+  } catch (e) {
+    history.replaceState(null, '', location.pathname);
+    S.msg = errorAuth(e);
+    S.view = 'login';
+  }
+  S.enlace = false; render();
+}
+
+function errorAuth(e) {
+  const c = (e && e.code) || '';
+  if (c.includes('expired') || c.includes('invalid-action-code')) return 'El enlace ha caducado o ya se usó. Pide uno nuevo.';
+  if (c.includes('invalid-email')) return 'El correo no es válido. Revisa que esté bien escrito.';
+  if (c.includes('too-many') || c.includes('quota')) return 'Se han pedido demasiados enlaces hoy. Prueba más tarde o avisa a tu entrenador.';
+  if (c.includes('network')) return 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
+  return 'No se pudo completar el acceso. Inténtalo de nuevo.';
+}
+
+function limpiarSubs() { S.unsub.forEach(f => { try { f(); } catch (e) {} }); S.unsub = []; }
+
+async function onUser(u) {
+  limpiarSubs();
+  S.user = u; S.plan = null; S.sesiones = []; S.consent = null; S.draft = null;
+  if (!u) {
+    if (S.enlace) return;
+    S.view = 'login'; return render();
+  }
+  S.role = (u.email === COACH_EMAIL) ? 'coach' : 'paciente';
+  S.view = 'cargando'; render();
+  try {
+    const plan = await S.B.db.get('plan', 'actual');
+    S.plan = plan;
+    S.consent = await S.B.db.get('consentimiento', 'paciente');
+  } catch (e) {
+    if (e && String(e.code).includes('permission')) { S.view = 'sinacceso'; return render(); }
+    S.view = 'error'; return render();
+  }
+  const errSub = e => { if (e && String(e.code).includes('permission')) { S.view = 'sinacceso'; render(); } };
+  S.unsub.push(S.B.db.watchDoc('plan', 'actual', p => { S.plan = p; render(); }, errSub));
+  S.unsub.push(S.B.db.watchCol('sesiones', l => {
+    S.sesiones = l.sort((a, b) => (b.fecha + (b.enviadaEn || '')).localeCompare(a.fecha + (a.enviadaEn || '')));
+    render();
+  }, errSub));
+  if (S.role === 'coach') S.view = 'coach';
+  else S.view = S.consent ? 'paciente' : 'consent';
+  render();
+}
+
+/* ============ Plan y borrador (paciente) ============ */
+const faseActiva = () => (S.plan && S.plan.fases || []).find(f => f.id === S.plan.faseActiva) || (S.plan && S.plan.fases && S.plan.fases[0]) || null;
+
+function diaPorDefecto(fase) {
+  const idHoy = ID_DIA[parseF(S.fecha).getDay()];
+  const hoyDia = fase.dias.find(d => d.id === idHoy);
+  if (hoyDia) return hoyDia.id;
+  const lun = lunesDe(S.fecha), dom = addDias(lun, 6);
+  const pend = fase.dias.find(d => !S.sesiones.some(s => s.diaId === d.id && s.faseId === fase.id && s.fecha >= lun && s.fecha <= dom));
+  return (pend || fase.dias[0]).id;
+}
+function diaActual(fase) {
+  if (!fase) return null;
+  if (!S.diaId || !fase.dias.some(d => d.id === S.diaId)) S.diaId = diaPorDefecto(fase);
+  return fase.dias.find(d => d.id === S.diaId);
+}
+const itemsDe = dia => dia.bloques.flatMap(b => b.items);
+
+function nuevoDraft(fase, dia, key) {
+  const ej = {};
+  itemsDe(dia).forEach(it => {
+    const sets = [];
+    for (let i = 0; i < (it.series || 1); i++) {
+      const s = { hecho: false };
+      if (it.tipo === 'fuerza') { s.reps = it.obj || 0; s.kg = it.kg || 0; }
+      if (it.tipo === 'tiempo') s.seg = it.obj || 0;
+      if (it.tipo === 'marcha') s.m = it.obj || 0;
+      sets.push(s);
+    }
+    ej[it.id] = { n: it.n, tipo: it.tipo, sets };
+  });
+  return {
+    key, fecha: S.fecha, diaId: dia.id, diaN: dia.n, diaT: dia.t, faseId: fase.id, ej,
+    fatiga: null, dolor: { hay: null, zona: '' }, entum: { hay: null, zonas: [], cuando: '', min: 0 },
+    notas: '', revisado: false, comentario: ''
+  };
+}
+
+function prepararDraft(fase, dia) {
+  const key = S.fecha + '_' + fase.id + '_' + dia.id;
+  const ya = S.sesiones.find(x => x.id === key);
+  if (!S.draft || S.draft.key !== key) {
+    if (ya) { S.draft = clonar(ya); S.draft.key = key; S.draft.enviada = true; }
+    else {
+      let loc = null;
+      try { loc = JSON.parse(store.get('rpt_draft_' + key) || 'null'); } catch (e) {}
+      S.draft = loc && loc.key === key ? loc : nuevoDraft(fase, dia, key);
+    }
+  }
+  if (ya) { S.draft.revisado = !!ya.revisado; S.draft.comentario = ya.comentario || ''; S.draft.enviada = true; S.draft.enviadaEn = ya.enviadaEn; }
+  return S.draft;
+}
+function guardarLocal() { if (S.draft && !S.draft.revisado) store.set('rpt_draft_' + S.draft.key, JSON.stringify(S.draft)); }
+
+function contar(ej) {
+  let t = 0, h = 0;
+  Object.values(ej || {}).forEach(e => (e.sets || []).forEach(s => { t++; if (s.hecho) h++; }));
+  return { t, h };
+}
+
+/* ============ Vistas ============ */
+function topbar(extra) {
+  return `<div class="top"><div class="wrap"><div><h1>RPT Rehab</h1><div class="quien">${esc(S.user ? S.user.email : '')}</div></div>
+    <div>${extra || ''}<button type="button" class="btn mini" data-act="salir">Salir</button></div></div></div>`;
+}
+
+function vistaLogin() {
+  const bloqueo = S.sent;
+  return `<div class="wrap"><h1 style="margin-top:36px">RPT Rehab</h1>
+  <p class="soft">Entreno personalizado y seguimiento.</p>
+  ${S.msg ? `<div class="aviso">${esc(S.msg)}</div>` : ''}
+  <div class="card">
+    ${bloqueo ? `<div class="ok"><strong>Enlace enviado a ${esc(S.sent)}.</strong><br>Ábrelo desde este mismo móvil. Si no lo ves, mira en spam o correo no deseado.</div>` : ''}
+    <label class="lab" for="email">Tu correo</label>
+    <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" value="${esc(S.email)}" placeholder="nombre@correo.com">
+    <div style="height:12px"></div>
+    <button type="button" class="btn pri" data-act="enviarenlace">${bloqueo ? 'Enviar otro enlace' : 'Enviarme el enlace de acceso'}</button>
+    <p class="small" style="margin-top:12px">No hace falta contraseña: te llega un enlace al correo y, al abrirlo, ya estás dentro.</p>
+  </div>
+  <p class="pie small">${VERSION}</p></div>`;
+}
+
+function vistaConfirmar() {
+  return `<div class="wrap"><h1 style="margin-top:36px">Confirma tu correo</h1>
+  <p class="soft">Has abierto el enlace desde otro navegador. Escribe el mismo correo al que llegó.</p>
+  <div class="card"><input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="nombre@correo.com">
+  <div style="height:12px"></div><button type="button" class="btn pri" data-act="confirmaremail">Entrar</button></div></div>`;
+}
+
+function vistaSinAcceso() {
+  return `<div class="wrap"><h1 style="margin-top:36px">Sin acceso</h1>
+  <div class="aviso">Este correo (${esc(S.user ? S.user.email : '')}) no está autorizado en esta aplicación.</div>
+  <button type="button" class="btn" data-act="salir">Cambiar de cuenta</button></div>`;
+}
+
+function vistaError() {
+  return `<div class="wrap"><h1 style="margin-top:36px">No se pudo conectar</h1>
+  <div class="aviso">Revisa tu conexión a internet e inténtalo de nuevo.</div>
+  <button type="button" class="btn pri" data-act="recargar">Reintentar</button></div>`;
+}
+
+function vistaConsent() {
+  return `${topbar()}<div class="wrap"><h2>Antes de empezar</h2>
+  ${S.msg ? `<div class="aviso">${esc(S.msg)}</div>` : ''}
+  <div class="card">
+    <p>Lo que registres aquí (series, cansancio, dolor, entumecimiento y notas) son <strong>datos de salud</strong>.</p>
+    <p>Solo los verá tu entrenador y se usan únicamente para preparar y ajustar tu entrenamiento. Se guardan en un servidor seguro en Europa, protegido con tu correo.</p>
+    <p>Puedes pedirle que te los muestre o que los borre cuando quieras. Esta aplicación no sustituye la valoración de un médico o fisioterapeuta.</p>
+    <label style="display:flex;gap:12px;align-items:flex-start;margin:16px 0;font-size:18px">
+      <input type="checkbox" id="acepto" style="width:30px;height:30px;flex:none;accent-color:var(--teal)">
+      <span>He leído esto y estoy de acuerdo.</span></label>
+    <button type="button" class="btn pri" data-act="aceptar">Continuar</button>
+  </div></div>`;
+}
+
+function filasResumen(ej) {
+  return Object.values(ej || {}).map(e => {
+    const sets = e.sets || [];
+    let txt;
+    const NO = '<span class="soft">— no hecha</span>';
+    if (e.tipo === 'fuerza') txt = sets.map(s => s.hecho ? '✓ ' + (s.reps || 0) + ' rep' + (s.kg ? ' · ' + fmt(s.kg) + ' kg' : '') : NO).join('<br>');
+    else if (e.tipo === 'tiempo') txt = sets.map(s => s.hecho ? '✓ ' + (s.seg || 0) + ' s' : NO).join('<br>');
+    else if (e.tipo === 'marcha') txt = sets.map(s => s.hecho ? '✓ ' + (s.m || 0) + ' m' : NO).join('<br>');
+    else txt = sets.filter(s => s.hecho).length + ' de ' + sets.length + ' hechas';
+    return `<tr><td>${esc(e.n)}</td><td>${txt}</td></tr>`;
+  }).join('');
+}
+
+function detalleSesion(s) {
+  const c = contar(s.ej);
+  let h = `<table class="res">${filasResumen(s.ej)}</table>`;
+  h += `<p><strong>Cansancio:</strong> ${s.fatiga ?? '—'} / 10</p>`;
+  h += `<p><strong>Dolor nuevo:</strong> ${s.dolor && s.dolor.hay ? 'Sí' + (s.dolor.zona ? ' · ' + esc(s.dolor.zona) : '') : 'No'}</p>`;
+  if (s.entum && s.entum.hay) {
+    h += `<p><strong>Entumecimiento:</strong> ${esc((s.entum.zonas || []).join(', ') || 'sin zona indicada')}${s.entum.cuando ? ' · ' + esc(s.entum.cuando.toLowerCase()) : ''}${s.entum.min ? ' · ' + s.entum.min + ' min' : ''}</p>`;
+  } else h += `<p><strong>Entumecimiento:</strong> No</p>`;
+  if (s.notas) h += `<p><strong>Notas:</strong> ${esc(s.notas)}</p>`;
+  if (s.comentario) h += `<div class="ok"><strong>Comentario del entrenador:</strong><br>${esc(s.comentario)}</div>`;
+  return h;
+}
+
+function cabSesion(s) {
+  const c = contar(s.ej);
+  return `<strong>${esc(fechaCorta(s.fecha))}</strong> · ${esc(s.diaT || '')} <span class="soft">(${esc(s.faseId || '')})</span><br>
+  <span class="soft">${c.h}/${c.t} series · cansancio ${s.fatiga ?? '—'}/10</span><br>
+  <span class="badge ${s.revisado ? 'rev' : 'pen'}">${s.revisado ? 'Revisada' : 'Sin revisar'}</span>${s.dolor && s.dolor.hay ? '<span class="badge pen">⚠ dolor</span>' : ''}${s.entum && s.entum.hay ? '<span class="badge pen">⚠ entumecimiento</span>' : ''}`;
+}
+
+/* ----- Paciente ----- */
+function vistaPaciente() {
+  const tabs = `<div class="tabs" style="grid-template-columns:1fr 1fr"><button type="button" class="tab ${S.tabP === 'hoy' ? 'on' : ''}" data-act="tabp" data-v="hoy">Entreno</button><button type="button" class="tab ${S.tabP === 'hist' ? 'on' : ''}" data-act="tabp" data-v="hist">Mi historial</button></div>`;
+  if (S.tabP === 'hist') {
+    const l = S.sesiones.map(s => `<details class="ses"><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion(s)}</div></details>`).join('');
+    return `${topbar()}<div class="wrap">${tabs}${l || '<div class="card">Aún no has enviado ninguna sesión.</div>'}<p class="pie small">${VERSION}</p></div>`;
+  }
+  const fase = faseActiva();
+  if (!fase) return `${topbar()}<div class="wrap">${tabs}<div class="card">Tu entrenador aún no ha cargado el plan. Vuelve a abrir esta página más tarde.</div></div>`;
+  const dia = diaActual(fase);
+  const d = prepararDraft(fase, dia);
+  const lun = lunesDe(S.fecha), dom = addDias(lun, 6);
+  const dias = `<div class="tabs" style="grid-template-columns:repeat(${fase.dias.length},1fr)">` + fase.dias.map(x => {
+    const hecho = S.sesiones.some(s => s.diaId === x.id && s.faseId === fase.id && s.fecha >= lun && s.fecha <= dom);
+    return `<button type="button" class="tab ${x.id === dia.id ? 'on' : ''}" data-act="dia" data-v="${esc(x.id)}">${esc(x.n)}<small class="${hecho ? 'hecho' : ''}">${hecho ? '✓ enviada' : esc(x.t)}</small></button>`;
+  }).join('') + '</div>';
+
+  let h = `${topbar()}<div class="wrap">${tabs}
+  ${S.msg ? `<div class="ok">${esc(S.msg)}</div>` : ''}
+  <p class="soft" style="margin-bottom:6px">${esc(fase.nombre)} · ${esc(fase.nota || '')}</p>
+  <label class="lab" for="fecha">Fecha del entreno</label>
+  <input type="date" id="fecha" value="${esc(S.fecha)}" max="${hoy()}">
+  ${dias}`;
+
+  if (d.revisado) {
+    h += `<div class="ok">Tu entrenador ya ha revisado esta sesión. Ya no se puede modificar.</div><div class="card">${detalleSesion(d)}</div>`;
+    return h + `<p class="pie small">${VERSION}</p></div>`;
+  }
+  if (d.enviada) h += `<div class="ok">Sesión enviada. Si algo está mal, corrígelo y vuelve a enviarla.</div>`;
+  h += `<div class="aviso" style="font-size:16px">Calzado cerrado siempre y alguien al lado en el equilibrio. Si hay dolor fuerte, mareo o una caída, para.</div>`;
+
+  dia.bloques.forEach(b => {
+    h += `<h2>${esc(b.t)}</h2><p class="soft">${esc(b.i)}</p>`;
+    b.items.forEach(it => {
+      const e = d.ej[it.id];
+      if (!e) return;
+      h += `<div class="item"><div class="it-n">${esc(it.n)}</div><div class="it-d">${esc(it.d)}</div>`;
+      e.sets.forEach((s, i) => {
+        h += `<div class="serie ${s.hecho ? 'hecha' : ''}"><div class="cab"><span>${e.sets.length > 1 ? 'Serie ' + (i + 1) : 'Hecho'}</span>
+          <button type="button" class="hbtn ${s.hecho ? 'on' : ''}" data-act="hecho" data-ej="${esc(it.id)}" data-i="${i}" aria-pressed="${s.hecho}">${s.hecho ? '✓ Hecha' : 'Marcar'}</button></div>`;
+        if (it.tipo === 'fuerza') h += `<div class="steps">${stepper('Repeticiones', s.reps, it.id, i, 'reps', '')}${stepper('Peso', s.kg, it.id, i, 'kg', 'kg')}</div>`;
+        else if (it.tipo === 'tiempo') h += `<div class="steps">${stepper('Segundos', s.seg, it.id, i, 'seg', 's')}</div>`;
+        else if (it.tipo === 'marcha') h += `<div class="steps">${stepper('Metros', s.m, it.id, i, 'm', 'm')}</div>`;
+        h += `</div>`;
+      });
+      h += `</div>`;
+    });
+  });
+
+  const c = contar(d.ej);
+  h += `<p class="prog">Series hechas: ${c.h} de ${c.t}</p><h2>¿Cómo ha ido?</h2><div class="card">`;
+  h += `<h3>Cansancio (1 = nada, 10 = muchísimo)</h3><div class="chips">` + [1,2,3,4,5,6,7,8,9,10].map(n => `<button type="button" class="chip num ${d.fatiga === n ? 'on' : ''}" data-act="fatiga" data-v="${n}">${n}</button>`).join('') + `</div>`;
+  h += `<h3>¿Dolor nuevo?</h3><div class="chips">${chipSN('dolor', d.dolor.hay)}</div>`;
+  if (d.dolor.hay) h += `<label class="lab" for="dolorzona">¿Dónde?</label><input type="text" id="dolorzona" value="${esc(d.dolor.zona)}" placeholder="Ej: rodilla derecha"><div style="height:14px"></div>`;
+  h += `<h3>¿Entumecimiento u hormigueo?</h3><div class="chips">${chipSN('entum', d.entum.hay)}</div>`;
+  if (d.entum.hay) {
+    h += `<div class="lab">¿Dónde? (puedes marcar varias)</div><div class="chips">` + ZONAS.map(z => `<button type="button" class="chip ${d.entum.zonas.includes(z) ? 'on' : ''}" data-act="zona" data-v="${esc(z)}">${esc(z)}</button>`).join('') + `</div>`;
+    h += `<div class="lab">¿Cuándo?</div><div class="chips">` + CUANDO.map(z => `<button type="button" class="chip ${d.entum.cuando === z ? 'on' : ''}" data-act="cuando" data-v="${esc(z)}">${esc(z)}</button>`).join('') + `</div>`;
+    h += `<div class="lab">¿Cuántos minutos duró?</div><div class="steps" style="margin-bottom:12px"><div class="ctl"><button type="button" data-act="entmin" data-d="-1" aria-label="Menos minutos">−</button><output>${d.entum.min}<small>min</small></output><button type="button" data-act="entmin" data-d="1" aria-label="Más minutos">+</button></div></div>`;
+    h += `<div class="aviso" style="font-size:16px">Si dura más de una hora, sube por el muslo o la ingle, o notas debilidad nueva, deja de entrenar y consulta con un médico.</div>`;
+  }
+  h += `<label class="lab" for="notas">Notas (opcional)</label><textarea id="notas" maxlength="2000" placeholder="Lo que quieras contar">${esc(d.notas)}</textarea></div>`;
+  if (S.aviso) h += `<div class="aviso" id="aviso">${esc(S.aviso)}</div>`;
+  h += `<button type="button" class="btn pri" data-act="enviar">${d.enviada ? 'Guardar cambios y reenviar' : 'Enviar al entrenador'}</button>`;
+  return h + `<p class="pie small">${VERSION}</p></div>`;
+}
+
+function chipSN(act, v) {
+  return `<button type="button" class="chip ${v === false ? 'on' : ''}" data-act="${act}" data-v="no">No</button><button type="button" class="chip ${v === true ? 'on' : ''}" data-act="${act}" data-v="si">Sí</button>`;
+}
+
+function stepper(label, valor, ej, i, campo, unidad) {
+  const a = `data-act="step" data-ej="${esc(ej)}" data-i="${i}" data-campo="${campo}"`;
+  return `<div class="step"><div class="lab">${label}</div><div class="ctl">
+    <button type="button" ${a} data-d="-1" aria-label="Menos ${label.toLowerCase()}">−</button>
+    <output>${fmt(valor || 0)}${unidad ? '<small>' + unidad + '</small>' : ''}</output>
+    <button type="button" ${a} data-d="1" aria-label="Más ${label.toLowerCase()}">+</button></div></div>`;
+}
+
+/* ----- Entrenador ----- */
+function vistaCoach() {
+  const pend = S.sesiones.filter(s => !s.revisado).length;
+  const tabs = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">
+    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Sesiones<small>${pend} sin revisar</small></button>
+    <button type="button" class="tab ${S.tabC === 'plan' ? 'on' : ''}" data-act="tabc" data-v="plan">Plan<small>${S.plan ? 'cargado' : 'falta cargar'}</small></button>
+    <button type="button" class="tab ${S.tabC === 'copia' ? 'on' : ''}" data-act="tabc" data-v="copia">Copia<small>y acceso</small></button></div>`;
+  let h = `${topbar()}<div class="wrap">${tabs}`;
+  if (S.msg) h += `<div class="ok">${esc(S.msg)}</div>`;
+
+  if (S.tabC === 'sesiones') {
+    h += `<div class="chips"><button type="button" class="chip ${S.filtro === 'pend' ? 'on' : ''}" data-act="filtro" data-v="pend">Sin revisar</button><button type="button" class="chip ${S.filtro === 'todas' ? 'on' : ''}" data-act="filtro" data-v="todas">Todas</button></div>`;
+    const l = S.sesiones.filter(s => S.filtro === 'todas' || !s.revisado);
+    if (!l.length) h += `<div class="card">${S.sesiones.length ? 'No hay sesiones pendientes de revisar.' : 'Todavía no hay sesiones enviadas.'}</div>`;
+    l.forEach(s => {
+      h += `<details class="ses" data-id="${esc(s.id)}" ${S.abiertas[s.id] ? 'open' : ''}><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion({ ...s, comentario: '' })}
+        <label class="lab" for="com_${esc(s.id)}">Tu comentario para el paciente</label>
+        <textarea id="com_${esc(s.id)}" maxlength="1000">${esc(S.coms[s.id] !== undefined ? S.coms[s.id] : (s.comentario || ''))}</textarea><div style="height:10px"></div>
+        ${s.revisado ? `<button type="button" class="btn" data-act="reabrir" data-id="${esc(s.id)}">Reabrir para que pueda corregir</button><div style="height:8px"></div><button type="button" class="btn" data-act="revisar" data-id="${esc(s.id)}">Guardar comentario</button>`
+          : `<button type="button" class="btn pri" data-act="revisar" data-id="${esc(s.id)}">Marcar como revisada</button>`}
+        </div></details>`;
+    });
+  }
+
+  if (S.tabC === 'plan') {
+    h += `<div class="card"><h3>Plan actual</h3>`;
+    if (S.plan && S.plan.fases) {
+      h += `<p class="soft">${S.plan.fases.length} fases. Cargado: ${esc((S.plan.actualizado || '').slice(0, 10) || '—')}</p>
+      <label class="lab" for="fase">Fase activa (la que ve el paciente)</label>
+      <select id="fase">${S.plan.fases.map(f => `<option value="${esc(f.id)}" ${f.id === S.plan.faseActiva ? 'selected' : ''}>${esc(f.nombre)} · ${f.dias.length} días</option>`).join('')}</select>`;
+    } else h += `<p class="soft">Todavía no hay plan cargado. Importa el archivo del plan.</p>`;
+    h += `</div><div class="card"><h3>Importar plan</h3><p class="soft">Elige el archivo .json del plan. Sustituye al plan actual (las sesiones ya enviadas no se tocan).</p>
+      <input type="file" id="planfile" accept=".json,application/json" style="font-size:17px;width:100%"></div>`;
+  }
+
+  if (S.tabC === 'copia') {
+    h += `<div class="card"><h3>Copia de seguridad</h3><p class="soft">Descarga todo (plan, sesiones y consentimiento) en un archivo.</p><button type="button" class="btn pri" data-act="backup">Descargar copia</button></div>
+    <div class="card"><h3>Consentimiento del paciente</h3><p>${S.consent ? 'Firmado el ' + esc((S.consent.fecha || '').slice(0, 10)) : 'Aún no lo ha firmado.'}</p></div>`;
+  }
+  return h + `<p class="pie small">${VERSION}</p></div>`;
+}
+
+/* ============ Render ============ */
+function render() {
+  const y = window.scrollY;
+  const v = S.view;
+  let h;
+  if (v === 'login') h = vistaLogin();
+  else if (v === 'confirmar') h = vistaConfirmar();
+  else if (v === 'sinacceso') h = vistaSinAcceso();
+  else if (v === 'error') h = vistaError();
+  else if (v === 'consent') h = vistaConsent();
+  else if (v === 'paciente') h = vistaPaciente();
+  else if (v === 'coach') h = vistaCoach();
+  else h = '<div class="wrap"><p class="soft" style="margin-top:40px">Cargando…</p></div>';
+  $('#app').innerHTML = h;
+  window.scrollTo(0, y);
+}
+
+/* ============ Acciones ============ */
+function toast(m) { S.msg = m; render(); setTimeout(() => { if (S.msg === m) { S.msg = ''; render(); } }, 4000); }
+
+async function enviarSesion() {
+  const d = S.draft;
+  const falta = [];
+  if (d.fatiga == null) falta.push('cansancio');
+  if (d.dolor.hay == null) falta.push('dolor nuevo');
+  if (d.entum.hay == null) falta.push('entumecimiento');
+  if (falta.length) { S.aviso = 'Falta responder: ' + falta.join(', ') + '.'; render(); const a = $('#aviso'); if (a) a.scrollIntoView({ block: 'center' }); return; }
+  S.aviso = '';
+  const c = contar(d.ej);
+  const doc = {
+    fecha: d.fecha, diaId: d.diaId, diaN: d.diaN, diaT: d.diaT, faseId: d.faseId, ej: d.ej,
+    fatiga: d.fatiga,
+    dolor: d.dolor.hay ? { hay: true, zona: (d.dolor.zona || '').slice(0, 200) } : { hay: false, zona: '' },
+    entum: d.entum.hay ? { hay: true, zonas: d.entum.zonas, cuando: d.entum.cuando || '', min: d.entum.min || 0 } : { hay: false, zonas: [], cuando: '', min: 0 },
+    notas: (d.notas || '').slice(0, 2000), resumen: { hechas: c.h, total: c.t },
+    enviadaEn: d.enviadaEn || ahora(), actualizadaEn: ahora(), revisado: false, comentario: ''
+  };
+  try {
+    await S.B.db.set('sesiones', d.key, doc);
+    store.del('rpt_draft_' + d.key);
+    d.enviada = true; d.enviadaEn = doc.enviadaEn;
+    toastPac('Enviado al entrenador ✓');
+  } catch (e) {
+    S.aviso = 'No se pudo enviar. Revisa tu conexión e inténtalo de nuevo.'; render();
+  }
+}
+function toastPac(m) { S.aviso = ''; S.msg = m; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); setTimeout(() => { if (S.msg === m) { S.msg = ''; render(); } }, 4000); }
+
+async function importarPlan(file) {
+  try {
+    const plan = JSON.parse(await file.text());
+    if (!plan || !Array.isArray(plan.fases) || !plan.fases.length) throw new Error('fases');
+    plan.fases.forEach(f => {
+      if (!f.id || !Array.isArray(f.dias) || !f.dias.length) throw new Error('dias');
+      f.dias.forEach(d => {
+        if (!d.id || !Array.isArray(d.bloques)) throw new Error('bloques');
+        const ids = new Set();
+        d.bloques.forEach(b => b.items.forEach(it => {
+          if (!it.id || !it.n || !it.tipo) throw new Error('item');
+          if (ids.has(it.id)) throw new Error('repetido ' + it.id);
+          ids.add(it.id);
+        }));
+      });
+    });
+    if (!confirm('¿Cargar este plan? Sustituye al plan actual.')) return;
+    plan.actualizado = ahora();
+    if (!plan.faseActiva || !plan.fases.some(f => f.id === plan.faseActiva)) plan.faseActiva = plan.fases[0].id;
+    await S.B.db.set('plan', 'actual', plan);
+    toast('Plan cargado ✓');
+  } catch (e) {
+    toast('El archivo no es un plan válido (' + (e.message || 'error') + ').');
+  }
+}
+
+async function copiaSeguridad() {
+  try {
+    const [ses, plan, cons] = await Promise.all([S.B.db.list('sesiones'), S.B.db.get('plan', 'actual'), S.B.db.get('consentimiento', 'paciente')]);
+    const blob = new Blob([JSON.stringify({ exportado: ahora(), plan, consentimiento: cons, sesiones: ses }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'rpt-rehab-copia-' + hoy() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Copia descargada ✓');
+  } catch (e) { toast('No se pudo descargar la copia.'); }
+}
+
+/* ============ Eventos ============ */
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act, v = b.dataset.v, d = S.draft;
+  switch (act) {
+    case 'enviarenlace': {
+      const em = ($('#email').value || '').trim().toLowerCase();
+      if (!em || !em.includes('@')) { S.msg = 'Escribe tu correo completo.'; S.email = em; return render(); }
+      if (Date.now() - S.lastSend < 30000) { S.msg = 'Espera unos segundos antes de pedir otro enlace.'; return render(); }
+      S.email = em; S.lastSend = Date.now(); S.msg = '';
+      try { await S.B.auth.sendLink(em); store.set('rpt_email', em); S.sent = em; }
+      catch (e) { S.msg = errorAuth(e); }
+      return render();
+    }
+    case 'confirmaremail': {
+      const em = ($('#email').value || '').trim().toLowerCase();
+      if (em) completarEnlace(em);
+      return;
+    }
+    case 'salir': S.sent = null; S.msg = ''; try { await S.B.auth.signOut(); } catch (e) {} return;
+    case 'recargar': return location.reload();
+    case 'aceptar': {
+      if (!$('#acepto').checked) { S.msg = 'Marca la casilla para continuar.'; S.view = 'consent'; return render(); }
+      try {
+        const c = { acepta: true, version: 1, fecha: ahora() };
+        await S.B.db.set('consentimiento', 'paciente', c);
+        S.consent = c; S.view = 'paciente'; S.msg = '';
+      } catch (e) { S.msg = 'No se pudo guardar. Inténtalo de nuevo.'; }
+      return render();
+    }
+    case 'tabp': S.tabP = v; return render();
+    case 'tabc': S.tabC = v; S.msg = ''; return render();
+    case 'filtro': S.filtro = v; return render();
+    case 'dia': S.diaId = v; S.draft = null; S.aviso = ''; return render();
+    case 'step': {
+      const s = d.ej[b.dataset.ej].sets[+b.dataset.i], c = b.dataset.campo;
+      s[c] = Math.max(0, Math.min(MAX[c], Math.round(((s[c] || 0) + (+b.dataset.d) * STEP[c]) * 10) / 10));
+      guardarLocal(); return render();
+    }
+    case 'hecho': { const s = d.ej[b.dataset.ej].sets[+b.dataset.i]; s.hecho = !s.hecho; guardarLocal(); return render(); }
+    case 'fatiga': d.fatiga = +v; S.aviso = ''; guardarLocal(); return render();
+    case 'dolor': d.dolor.hay = (v === 'si'); S.aviso = ''; guardarLocal(); return render();
+    case 'entum': d.entum.hay = (v === 'si'); S.aviso = ''; guardarLocal(); return render();
+    case 'zona': { const z = d.entum.zonas, i = z.indexOf(v); if (i >= 0) z.splice(i, 1); else z.push(v); guardarLocal(); return render(); }
+    case 'cuando': d.entum.cuando = (d.entum.cuando === v ? '' : v); guardarLocal(); return render();
+    case 'entmin': d.entum.min = Math.max(0, Math.min(MAX.min, (d.entum.min || 0) + (+b.dataset.d) * STEP.min)); guardarLocal(); return render();
+    case 'enviar': return enviarSesion();
+    case 'revisar': {
+      const id = b.dataset.id, ta = document.getElementById('com_' + id);
+      try { await S.B.db.update('sesiones', id, { revisado: true, comentario: (ta ? ta.value : '').slice(0, 1000), revisadaEn: ahora() }); delete S.coms[id]; toast('Sesión revisada ✓'); }
+      catch (e) { toast('No se pudo guardar.'); }
+      return;
+    }
+    case 'reabrir': {
+      try { await S.B.db.update('sesiones', b.dataset.id, { revisado: false }); toast('Sesión reabierta ✓'); }
+      catch (e) { toast('No se pudo reabrir.'); }
+      return;
+    }
+    case 'backup': return copiaSeguridad();
+  }
+});
+
+// recordar qué sesiones tiene abiertas el entrenador (los avisos en tiempo real no deben cerrarlas)
+document.addEventListener('toggle', ev => {
+  const t = ev.target;
+  if (t.tagName === 'DETAILS' && t.dataset.id) S.abiertas[t.dataset.id] = t.open;
+}, true);
+
+document.addEventListener('input', ev => {
+  const t = ev.target, d = S.draft;
+  if (t.id && t.id.startsWith('com_')) S.coms[t.id.slice(4)] = t.value;
+  if (!d) return;
+  if (t.id === 'notas') { d.notas = t.value; guardarLocal(); }
+  if (t.id === 'dolorzona') { d.dolor.zona = t.value; guardarLocal(); }
+});
+
+document.addEventListener('change', async ev => {
+  const t = ev.target;
+  if (t.id === 'fecha' && t.value) { S.fecha = t.value; S.draft = null; S.diaId = null; S.aviso = ''; render(); }
+  if (t.id === 'fase') { try { await S.B.db.update('plan', 'actual', { faseActiva: t.value }); toast('Fase activa cambiada ✓'); } catch (e) { toast('No se pudo cambiar la fase.'); } }
+  if (t.id === 'planfile' && t.files && t.files[0]) importarPlan(t.files[0]);
+});
+
+arrancar();
+</script>
+</body>
+</html>
