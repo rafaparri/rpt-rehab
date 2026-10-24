@@ -67,6 +67,7 @@
   .tab.on small { color:var(--on); }
   .tab .hecho { color:var(--ok); }
   .tab.on .hecho { color:var(--on); }
+  .tab.bloq { opacity:.7; }
   .item { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0; }
   .it-n { font-weight:700; font-size:20px; }
   .it-d { color:var(--soft); font-size:16px; margin-bottom:6px; }
@@ -79,7 +80,6 @@
   }
   .hbtn.on { background:var(--teal); color:var(--on); }
   .steps { display:flex; flex-wrap:wrap; gap:10px 14px; }
-  .step { }
   .ctl { display:flex; align-items:center; gap:6px; }
   .ctl button {
     width:52px; height:52px; font-size:28px; line-height:1; border-radius:12px;
@@ -95,9 +95,9 @@
   .chip.num { min-width:50px; padding:10px 0; }
   .chip.on { background:var(--teal); border-color:var(--teal); color:var(--on); font-weight:700; }
   .prog { font-size:16px; color:var(--soft); margin:6px 0 0; }
-  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:14px; font-weight:700; margin:2px 4px 2px 0; }
-  .badge.rev { background:var(--teal2); color:var(--teal); }
-  .badge.pen { background:var(--warn2); color:var(--warn); }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:13px; font-weight:700; margin:2px 4px 2px 0; letter-spacing:.2px; }
+  .badge.rev { background:var(--teal2); color:var(--teal); border:1px solid var(--teal); }
+  .badge.pen { background:var(--warn2); color:var(--warn); border:1px solid var(--warn); }
   .badge.cur { background:var(--alt); color:var(--soft); border:1px solid var(--line); }
   details.ses { background:var(--card); border:1px solid var(--line); border-radius:14px; margin:10px 0; padding:0; }
   details.ses > summary { padding:14px; cursor:pointer; list-style:none; }
@@ -125,7 +125,7 @@ const CONFIG = {
   appId: "1:439754311440:web:2a6ad9137640cd27884795"
 };
 const COACH_EMAIL = 'rafa.parri@gmail.com';
-const VERSION = 'v1.1 · 24 oct 2026';
+const VERSION = 'v2.0 · 24 oct 2026';
 const FB = '10.12.2';
 
 /* ============ Utilidades ============ */
@@ -140,13 +140,9 @@ const pad = n => String(n).padStart(2, '0');
 const isoFecha = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 const hoy = () => isoFecha(new Date());
 const parseF = f => { const [y, m, d] = f.split('-').map(Number); return new Date(y, m - 1, d); };
-const addDias = (f, n) => { const d = parseF(f); d.setDate(d.getDate() + n); return isoFecha(d); };
-const lunesDe = f => { const d = parseF(f); const wd = (d.getDay() + 6) % 7; return addDias(f, -wd); };
-const DIAS_LARGO = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 const DIAS_CORTO = ['dom','lun','mar','mié','jue','vie','sáb'];
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-const ID_DIA = ['dom','lun','mar','mie','jue','vie','sab'];
-const fechaCorta = f => { const d = parseF(f); return DIAS_CORTO[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; };
+const fechaCorta = f => { if (!f) return '—'; const d = parseF(f); return DIAS_CORTO[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; };
 const fmt = n => String(Math.round(n * 10) / 10).replace('.', ',');
 const clonar = o => JSON.parse(JSON.stringify(o));
 const ahora = () => new Date().toISOString();
@@ -160,7 +156,7 @@ const CUANDO = ['Durante el ejercicio', 'Al terminar', 'Más tarde'];
 const S = {
   view: 'cargando', B: null, user: null, role: null, enlace: false,
   plan: null, sesiones: [], consent: null,
-  fecha: hoy(), diaId: null, draft: null, tabP: 'hoy', tabC: 'sesiones', filtro: 'pend',
+  semanaId: null, diaId: null, draft: null, tabP: 'hoy', tabC: 'prog', filtro: 'pend',
   msg: '', aviso: '', lastSend: 0, email: store.get('rpt_email') || '', unsub: [], sent: null,
   abiertas: {}, coms: {}, autoT: null, acepto: false
 };
@@ -236,7 +232,7 @@ function limpiarSubs() { S.unsub.forEach(f => { try { f(); } catch (e) {} }); S.
 
 async function onUser(u) {
   limpiarSubs();
-  S.user = u; S.plan = null; S.sesiones = []; S.consent = null; S.draft = null;
+  S.user = u; S.plan = null; S.sesiones = []; S.consent = null; S.draft = null; S.semanaId = null; S.diaId = null;
   if (!u) {
     if (S.enlace) return;
     S.view = 'login'; return render();
@@ -244,8 +240,7 @@ async function onUser(u) {
   S.role = (u.email === COACH_EMAIL) ? 'coach' : 'paciente';
   S.view = 'cargando'; render();
   try {
-    const plan = await S.B.db.get('plan', 'actual');
-    S.plan = plan;
+    S.plan = await S.B.db.get('plan', 'actual');
     S.consent = await S.B.db.get('consentimiento', 'paciente');
   } catch (e) {
     if (e && String(e.code).includes('permission')) { S.view = 'sinacceso'; return render(); }
@@ -254,7 +249,7 @@ async function onUser(u) {
   const errSub = e => { if (e && String(e.code).includes('permission')) { S.view = 'sinacceso'; render(); } };
   S.unsub.push(S.B.db.watchDoc('plan', 'actual', p => { S.plan = p; render(); }, errSub));
   S.unsub.push(S.B.db.watchCol('sesiones', l => {
-    S.sesiones = l.sort((a, b) => (b.fecha + (b.enviadaEn || '')).localeCompare(a.fecha + (a.enviadaEn || '')));
+    S.sesiones = l.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.actualizadaEn || '').localeCompare(a.actualizadaEn || ''));
     render();
   }, errSub));
   if (S.role === 'coach') S.view = 'coach';
@@ -262,32 +257,63 @@ async function onUser(u) {
   render();
 }
 
-/* ============ Plan y borrador (paciente) ============ */
-// La fase que toca en una fecha: la última cuya fecha de inicio ya ha llegado; si ninguna tiene fecha, la "fase activa" elegida a mano
-function faseEn(fecha) {
-  const fs = (S.plan && S.plan.fases) || [];
-  if (!fs.length) return null;
-  const con = fs.filter(f => f.desde && f.desde <= fecha).sort((a, b) => b.desde.localeCompare(a.desde));
-  return con[0] || fs.find(f => f.id === S.plan.faseActiva) || fs[0];
-}
-const faseActiva = () => faseEn(S.fecha);
-
-function diaPorDefecto(fase) {
-  const idHoy = ID_DIA[parseF(S.fecha).getDay()];
-  const hoyDia = fase.dias.find(d => d.id === idHoy);
-  if (hoyDia) return hoyDia.id;
-  const lun = lunesDe(S.fecha), dom = addDias(lun, 6);
-  const pend = fase.dias.find(d => !S.sesiones.some(s => s.diaId === d.id && s.faseId === fase.id && s.estado !== 'en_curso' && s.fecha >= lun && s.fecha <= dom));
-  return (pend || fase.dias[0]).id;
-}
-function diaActual(fase) {
-  if (!fase) return null;
-  if (!S.diaId || !fase.dias.some(d => d.id === S.diaId)) S.diaId = diaPorDefecto(fase);
-  return fase.dias.find(d => d.id === S.diaId);
-}
+/* ============ Semanas, estados y bloqueo ============ */
+const SEMS = () => (S.plan && Array.isArray(S.plan.semanas)) ? S.plan.semanas : [];
+const planAntiguo = () => !!(S.plan && !Array.isArray(S.plan.semanas));
+const keyDe = (semId, diaId) => semId + '_' + diaId;
+const sesDe = (semId, diaId) => S.sesiones.find(s => s.id === keyDe(semId, diaId)) || null;
 const itemsDe = dia => dia.bloques.flatMap(b => b.items);
 
-function nuevoDraft(fase, dia, key) {
+// Estado de un día: SIN REALIZAR (no enviado), SIN REVISAR (enviado), REVISADA
+function estadoDia(semId, diaId) {
+  const s = sesDe(semId, diaId);
+  if (!s || s.estado === 'en_curso') return 'sin_realizar';
+  return s.revisado ? 'revisada' : 'sin_revisar';
+}
+function resumenSemana(w) {
+  const n = w.dias.length; let env = 0, rev = 0, curso = 0;
+  w.dias.forEach(d => {
+    const e = estadoDia(w.id, d.id);
+    if (e !== 'sin_realizar') env++;
+    if (e === 'revisada') rev++;
+    const s = sesDe(w.id, d.id); if (s && s.estado === 'en_curso') curso++;
+  });
+  const estado = (n > 0 && rev === n) ? 'revisada' : ((n > 0 && env === n) ? 'sin_revisar' : 'sin_realizar');
+  return { n, env, rev, curso, estado };
+}
+// Mario solo accede a una semana si todas las anteriores están REVISADAS
+function desbloqueada(i) {
+  const ws = SEMS();
+  for (let k = 0; k < i; k++) if (resumenSemana(ws[k]).estado !== 'revisada') return false;
+  return true;
+}
+function badgeEstado(e) {
+  if (e === 'revisada') return '<span class="badge rev">REVISADA</span>';
+  if (e === 'sin_revisar') return '<span class="badge pen">SIN REVISAR</span>';
+  return '<span class="badge cur">SIN REALIZAR</span>';
+}
+
+function semanaSel() {
+  const ws = SEMS();
+  if (!ws.length) return null;
+  let i = ws.findIndex(w => w.id === S.semanaId);
+  if (i < 0) {
+    i = ws.findIndex((w, k) => desbloqueada(k) && resumenSemana(w).estado === 'sin_realizar');
+    if (i < 0) { i = 0; ws.forEach((w, k) => { if (desbloqueada(k)) i = k; }); }
+    S.semanaId = ws[i].id; S.diaId = null;
+  }
+  return { w: ws[i], i, abierta: desbloqueada(i) };
+}
+function diaSel(w) {
+  if (!S.diaId || !w.dias.some(d => d.id === S.diaId)) {
+    const pend = w.dias.find(d => estadoDia(w.id, d.id) === 'sin_realizar');
+    S.diaId = (pend || w.dias[0]).id;
+  }
+  return w.dias.find(d => d.id === S.diaId);
+}
+
+/* ============ Borrador (paciente) ============ */
+function nuevoDraft(sem, dia, key) {
   const ej = {};
   itemsDe(dia).forEach(it => {
     const sets = [];
@@ -301,26 +327,28 @@ function nuevoDraft(fase, dia, key) {
     ej[it.id] = { n: it.n, tipo: it.tipo, sets };
   });
   return {
-    key, fecha: S.fecha, diaId: dia.id, diaN: dia.n, diaT: dia.t, faseId: fase.id, ej,
+    key, fecha: hoy(), semanaId: sem.id, semanaN: SEMS().findIndex(x => x.id === sem.id) + 1,
+    diaId: dia.id, diaN: dia.n, diaT: dia.t, ej,
     fatiga: null, dolor: { hay: null, zona: '' }, entum: { hay: null, zonas: [], cuando: '', min: 0 },
     notas: '', revisado: false, comentario: ''
   };
 }
 
-function prepararDraft(fase, dia) {
-  const key = S.fecha + '_' + fase.id + '_' + dia.id;
+function prepararDraft(sem, dia) {
+  const key = keyDe(sem.id, dia.id);
   const ya = S.sesiones.find(x => x.id === key);
   if (!S.draft || S.draft.key !== key) {
-    if (ya) { S.draft = clonar(ya); S.draft.key = key; S.draft.enviada = ya.estado !== 'en_curso'; }
+    if (ya) { S.draft = clonar(ya); S.draft.key = key; }
     else {
       let loc = null;
       try { loc = JSON.parse(store.get('rpt_draft_' + key) || 'null'); } catch (e) {}
-      S.draft = loc && loc.key === key ? loc : nuevoDraft(fase, dia, key);
+      S.draft = loc && loc.key === key ? loc : nuevoDraft(sem, dia, key);
     }
   }
   if (ya) { S.draft.revisado = !!ya.revisado; S.draft.comentario = ya.comentario || ''; S.draft.enviada = ya.estado !== 'en_curso'; S.draft.enviadaEn = ya.enviadaEn || null; }
   return S.draft;
 }
+
 function guardarLocal() {
   if (S.draft && !S.draft.revisado) { store.set('rpt_draft_' + S.draft.key, JSON.stringify(S.draft)); programarAuto(); }
 }
@@ -336,7 +364,7 @@ async function autoguardar() {
 function docDesdeDraft(d, estado) {
   const c = contar(d.ej);
   return {
-    fecha: d.fecha, diaId: d.diaId, diaN: d.diaN, diaT: d.diaT, faseId: d.faseId, ej: d.ej, estado,
+    fecha: d.fecha, semanaId: d.semanaId, semanaN: d.semanaN, diaId: d.diaId, diaN: d.diaN, diaT: d.diaT, ej: d.ej, estado,
     fatiga: d.fatiga == null ? null : d.fatiga,
     dolor: d.dolor.hay === true ? { hay: true, zona: (d.dolor.zona || '').slice(0, 200) } : { hay: d.dolor.hay, zona: '' },
     entum: d.entum.hay === true ? { hay: true, zonas: d.entum.zonas, cuando: d.entum.cuando || '', min: d.entum.min || 0 } : { hay: d.entum.hay, zonas: [], cuando: '', min: 0 },
@@ -421,59 +449,82 @@ function filasResumen(ej) {
 }
 
 function detalleSesion(s) {
-  const c = contar(s.ej);
   let h = `<table class="res">${filasResumen(s.ej)}</table>`;
   h += `<p><strong>Cansancio:</strong> ${s.fatiga ?? '—'} / 10</p>`;
-  h += `<p><strong>Dolor nuevo:</strong> ${s.dolor && s.dolor.hay ? 'Sí' + (s.dolor.zona ? ' · ' + esc(s.dolor.zona) : '') : 'No'}</p>`;
+  h += `<p><strong>Dolor nuevo:</strong> ${s.dolor && s.dolor.hay ? 'Sí' + (s.dolor.zona ? ' · ' + esc(s.dolor.zona) : '') : (s.dolor && s.dolor.hay === false ? 'No' : '—')}</p>`;
   if (s.entum && s.entum.hay) {
     h += `<p><strong>Entumecimiento:</strong> ${esc((s.entum.zonas || []).join(', ') || 'sin zona indicada')}${s.entum.cuando ? ' · ' + esc(s.entum.cuando.toLowerCase()) : ''}${s.entum.min ? ' · ' + s.entum.min + ' min' : ''}</p>`;
-  } else h += `<p><strong>Entumecimiento:</strong> No</p>`;
+  } else h += `<p><strong>Entumecimiento:</strong> ${s.entum && s.entum.hay === false ? 'No' : '—'}</p>`;
   if (s.notas) h += `<p><strong>Notas:</strong> ${esc(s.notas)}</p>`;
   if (s.comentario) h += `<div class="ok"><strong>Comentario del entrenador:</strong><br>${esc(s.comentario)}</div>`;
   return h;
 }
 
-function estadoBadge(s) {
-  if (s.estado === 'en_curso') return '<span class="badge cur">En curso</span>';
-  return `<span class="badge ${s.revisado ? 'rev' : 'pen'}">${s.revisado ? 'Revisada' : 'Sin revisar'}</span>`;
+function estadoBadgeSes(s) {
+  if (s.estado === 'en_curso') return '<span class="badge cur">EN CURSO</span>';
+  return s.revisado ? '<span class="badge rev">REVISADA</span>' : '<span class="badge pen">SIN REVISAR</span>';
 }
-
+function numSemana(s) {
+  const i = SEMS().findIndex(w => w.id === s.semanaId);
+  return i >= 0 ? i + 1 : (s.semanaN || '?');
+}
 function cabSesion(s) {
   const c = contar(s.ej);
-  return `<strong>${esc(fechaCorta(s.fecha))}</strong> · ${esc(s.diaT || '')} <span class="soft">(${esc(s.faseId || '')})</span><br>
-  <span class="soft">${c.h}/${c.t} series · cansancio ${s.fatiga ?? '—'}/10</span><br>
-  ${estadoBadge(s)}${s.dolor && s.dolor.hay ? '<span class="badge pen">⚠ dolor</span>' : ''}${s.entum && s.entum.hay ? '<span class="badge pen">⚠ entumecimiento</span>' : ''}`;
+  return `<strong>Semana ${numSemana(s)} · ${esc(s.diaN || '')}</strong> · ${esc(s.diaT || '')}<br>
+  <span class="soft">${esc(fechaCorta(s.fecha))} · ${c.h}/${c.t} series · cansancio ${s.fatiga ?? '—'}/10</span><br>
+  ${estadoBadgeSes(s)}${s.dolor && s.dolor.hay ? '<span class="badge pen">⚠ dolor</span>' : ''}${s.entum && s.entum.hay ? '<span class="badge pen">⚠ entumecimiento</span>' : ''}`;
 }
 
 /* ----- Paciente ----- */
+function chipSN(act, v) {
+  return `<button type="button" class="chip ${v === false ? 'on' : ''}" data-act="${act}" data-v="no">No</button><button type="button" class="chip ${v === true ? 'on' : ''}" data-act="${act}" data-v="si">Sí</button>`;
+}
+
+function stepper(label, valor, ej, i, campo, unidad) {
+  const a = `data-act="step" data-ej="${esc(ej)}" data-i="${i}" data-campo="${campo}"`;
+  return `<div class="step"><div class="lab">${label}</div><div class="ctl">
+    <button type="button" ${a} data-d="-1" aria-label="Menos ${label.toLowerCase()}">−</button>
+    <output>${fmt(valor || 0)}${unidad ? '<small>' + unidad + '</small>' : ''}</output>
+    <button type="button" ${a} data-d="1" aria-label="Más ${label.toLowerCase()}">+</button></div></div>`;
+}
+
 function vistaPaciente() {
   const tabs = `<div class="tabs" style="grid-template-columns:1fr 1fr"><button type="button" class="tab ${S.tabP === 'hoy' ? 'on' : ''}" data-act="tabp" data-v="hoy">Entreno</button><button type="button" class="tab ${S.tabP === 'hist' ? 'on' : ''}" data-act="tabp" data-v="hist">Mi historial</button></div>`;
   if (S.tabP === 'hist') {
     const l = S.sesiones.map(s => `<details class="ses"><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion(s)}</div></details>`).join('');
     return `${topbar()}<div class="wrap">${tabs}${l || '<div class="card">Aún no has enviado ninguna sesión.</div>'}<p class="pie small">${VERSION}</p></div>`;
   }
-  const fase = faseActiva();
-  if (!fase) return `${topbar()}<div class="wrap">${tabs}<div class="card">Tu entrenador aún no ha cargado el plan. Vuelve a abrir esta página más tarde.</div></div>`;
-  const dia = diaActual(fase);
-  const d = prepararDraft(fase, dia);
-  const lun = lunesDe(S.fecha), dom = addDias(lun, 6);
-  const dias = `<div class="tabs" style="grid-template-columns:repeat(${fase.dias.length},1fr)">` + fase.dias.map(x => {
-    const ses = S.sesiones.find(s => s.diaId === x.id && s.faseId === fase.id && s.fecha >= lun && s.fecha <= dom);
-    const hecho = ses && ses.estado !== 'en_curso', curso = ses && ses.estado === 'en_curso';
-    return `<button type="button" class="tab ${x.id === dia.id ? 'on' : ''}" data-act="dia" data-v="${esc(x.id)}">${esc(x.n)}<small class="${hecho ? 'hecho' : ''}">${hecho ? '✓ enviada' : (curso ? 'en curso' : esc(x.t))}</small></button>`;
+  const ws = SEMS();
+  if (!ws.length) {
+    return `${topbar()}<div class="wrap">${tabs}<div class="card">${planAntiguo() ? 'Tu entrenador está actualizando el plan. Vuelve a abrir esta página en un rato.' : 'Tu entrenador aún no ha cargado el plan. Vuelve a abrir esta página más tarde.'}</div></div>`;
+  }
+  const sel = semanaSel(), w = sel.w;
+  const semBtns = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">` + ws.map((x, k) => {
+    const ab = desbloqueada(k), r = resumenSemana(x);
+    const txt = !ab ? '🔒 bloqueada' : (r.estado === 'revisada' ? '✓ revisada' : (r.estado === 'sin_revisar' ? 'enviada' : (r.env || r.curso ? (r.env + '/' + r.n + ' enviados') : 'por hacer')));
+    return `<button type="button" class="tab ${x.id === w.id ? 'on' : ''} ${ab ? '' : 'bloq'}" data-act="sem" data-v="${esc(x.id)}">Semana ${k + 1}<small class="${r.estado === 'revisada' ? 'hecho' : ''}">${txt}</small></button>`;
   }).join('') + '</div>';
 
-  let h = `${topbar()}<div class="wrap">${tabs}
-  ${S.msg ? `<div class="ok">${esc(S.msg)}</div>` : ''}
-  <p class="soft" style="margin-bottom:6px">${esc(fase.nombre)} · ${esc(fase.nota || '')}</p>
-  <label class="lab" for="fecha">Fecha del entreno</label>
-  <input type="date" id="fecha" value="${esc(S.fecha)}" max="${hoy()}">
-  ${dias}`;
+  let h = `${topbar()}<div class="wrap">${tabs}${S.msg ? `<div class="ok">${esc(S.msg)}</div>` : ''}${semBtns}`;
+  if (!sel.abierta) {
+    return h + `<div class="aviso">Esta semana se desbloquea cuando tu entrenador haya revisado la anterior.</div><p class="pie small">${VERSION}</p></div>`;
+  }
+  h += `<p class="soft" style="margin-bottom:6px">${esc(w.grupo || '')}${w.nota ? ' · ' + esc(w.nota) : ''}</p>`;
+
+  const dia = diaSel(w);
+  const d = prepararDraft(w, dia);
+  h += `<div class="tabs" style="grid-template-columns:repeat(${w.dias.length},1fr)">` + w.dias.map(x => {
+    const st = estadoDia(w.id, x.id), ses = sesDe(w.id, x.id);
+    const txt = st === 'revisada' ? '✓ revisada' : (st === 'sin_revisar' ? '✓ enviada' : (ses && ses.estado === 'en_curso' ? 'en curso' : esc(x.t)));
+    return `<button type="button" class="tab ${x.id === dia.id ? 'on' : ''}" data-act="dia" data-v="${esc(x.id)}">${esc(x.n)}<small class="${st !== 'sin_realizar' ? 'hecho' : ''}">${txt}</small></button>`;
+  }).join('') + '</div>';
 
   if (d.revisado) {
-    h += `<div class="ok">Tu entrenador ya ha revisado esta sesión. Ya no se puede modificar.</div><div class="card">${detalleSesion(d)}</div>`;
+    h += `<div class="ok">Tu entrenador ya ha revisado esta sesión (${esc(fechaCorta(d.fecha))}). Ya no se puede modificar.</div><div class="card">${detalleSesion(d)}</div>`;
     return h + `<p class="pie small">${VERSION}</p></div>`;
   }
+  h += `<label class="lab" for="fecha">Fecha en la que hiciste este entreno</label>
+  <input type="date" id="fecha" value="${esc(d.fecha)}" max="${hoy()}">`;
   if (d.enviada) h += `<div class="ok">Sesión enviada. Si algo está mal, corrígelo y vuelve a enviarla.</div>`;
   h += `<div class="aviso" style="font-size:16px">Calzado cerrado siempre y alguien al lado en el equilibrio. Si hay dolor fuerte, mareo o una caída, para.</div>`;
 
@@ -513,18 +564,6 @@ function vistaPaciente() {
   return h + `<p class="pie small">${VERSION}</p></div>`;
 }
 
-function chipSN(act, v) {
-  return `<button type="button" class="chip ${v === false ? 'on' : ''}" data-act="${act}" data-v="no">No</button><button type="button" class="chip ${v === true ? 'on' : ''}" data-act="${act}" data-v="si">Sí</button>`;
-}
-
-function stepper(label, valor, ej, i, campo, unidad) {
-  const a = `data-act="step" data-ej="${esc(ej)}" data-i="${i}" data-campo="${campo}"`;
-  return `<div class="step"><div class="lab">${label}</div><div class="ctl">
-    <button type="button" ${a} data-d="-1" aria-label="Menos ${label.toLowerCase()}">−</button>
-    <output>${fmt(valor || 0)}${unidad ? '<small>' + unidad + '</small>' : ''}</output>
-    <button type="button" ${a} data-d="1" aria-label="Más ${label.toLowerCase()}">+</button></div></div>`;
-}
-
 /* ----- Entrenador ----- */
 function objetivo(it) {
   const n = it.series || 1;
@@ -535,51 +574,61 @@ function objetivo(it) {
 }
 
 function vistaProgramacion() {
-  if (!S.plan || !S.plan.fases) return `<div class="card"><h3>Programación</h3><p class="soft">Todavía no hay plan cargado. Importa el archivo del plan.</p></div>`;
-  const fs = S.plan.fases, act = faseEn(hoy());
-  const iAct = fs.findIndex(f => f.id === act.id);
-  let h = `<h2 style="margin-top:6px">Programación</h2><p class="soft">Todo el plan, lo haya hecho ya o no. Si pones una fecha de inicio a una fase, el paciente pasa a ella ese día sin que tengas que tocar nada.</p>`;
-  fs.forEach((f, i) => {
-    const hechos = f.dias.filter(d => S.sesiones.some(s => s.faseId === f.id && s.diaId === d.id && s.estado !== 'en_curso')).length;
-    const chip = i === iAct ? '<span class="badge rev">Activa</span>' : (i < iAct ? '<span class="badge cur">Anterior</span>' : '<span class="badge pen">Próxima</span>');
-    const key = 'f_' + f.id;
-    const abierta = S.abiertas[key] !== undefined ? S.abiertas[key] : i === iAct;
-    h += `<details class="ses" data-id="${esc(key)}" ${abierta ? 'open' : ''}><summary><strong>${esc(f.nombre)}</strong> · ${f.dias.length} días ${chip}<br>
-      <span class="soft">${f.desde ? 'Empieza el ' + esc(fechaCorta(f.desde)) + ' · ' : ''}${hechos} de ${f.dias.length} días hechos en la app</span></summary><div class="cuerpo">
-      <p class="soft" style="margin-top:10px">${esc(f.nota || '')}</p>
-      <label class="lab" for="desde_${esc(f.id)}">Empieza el (opcional)</label>
-      <input type="date" id="desde_${esc(f.id)}" data-fase="${esc(f.id)}" value="${esc(f.desde || '')}"><div style="height:8px"></div>`;
-    f.dias.forEach(d => {
-      const n = S.sesiones.filter(s => s.faseId === f.id && s.diaId === d.id && s.estado !== 'en_curso').length;
-      const dk = 'd_' + f.id + '_' + d.id;
-      const etiqueta = n ? `<span class="badge rev">✓ hecho ${n} ${n > 1 ? 'veces' : 'vez'}</span>` : `<span class="badge ${i < iAct ? 'cur' : 'pen'}">${i < iAct ? 'sin datos en la app' : 'pendiente'}</span>`;
-      h += `<details class="ses" data-id="${esc(dk)}" ${S.abiertas[dk] ? 'open' : ''} style="margin:8px 0"><summary><strong>${esc(d.n)}</strong> · ${esc(d.t)} ${etiqueta}</summary><div class="cuerpo">`;
+  if (planAntiguo()) return `<div class="aviso">El plan cargado es de una versión anterior. Importa el archivo <strong>plan-cmt-v2.json</strong> (abajo) para ver la programación semana a semana.</div>${tarjetaImportar()}`;
+  const ws = SEMS();
+  if (!ws.length) return `<div class="card"><h3>Programación</h3><p class="soft">Todavía no hay plan cargado. Importa el archivo del plan.</p></div>${tarjetaImportar()}`;
+  const iActual = ws.findIndex(w => resumenSemana(w).estado !== 'revisada');
+  let h = `<h2 style="margin-top:6px">Programación</h2>
+  <p class="soft">Todas las semanas, hechas o no. Mario solo ve una semana cuando todas las anteriores están REVISADAS por ti.</p>`;
+  ws.forEach((w, i) => {
+    const r = resumenSemana(w), ab = desbloqueada(i);
+    const key = 'w_' + w.id;
+    const abierta = S.abiertas[key] !== undefined ? S.abiertas[key] : i === iActual;
+    h += `<details class="ses" data-id="${esc(key)}" ${abierta ? 'open' : ''}><summary><strong>Semana ${i + 1}</strong> · ${esc(w.grupo || '')}${w.ampliada ? ' · ampliada' : ''} ${badgeEstado(r.estado)}<br>
+      <span class="soft">${r.env} de ${r.n} días enviados · ${r.rev} revisados · ${ab ? 'abierta para Mario' : '🔒 bloqueada para Mario'}</span></summary><div class="cuerpo">
+      <p class="soft" style="margin-top:10px">${esc(w.nota || '')}</p>`;
+    w.dias.forEach(d => {
+      const st = estadoDia(w.id, d.id), ses = sesDe(w.id, d.id), dk = 'd_' + w.id + '_' + d.id;
+      h += `<details class="ses" data-id="${esc(dk)}" ${S.abiertas[dk] ? 'open' : ''} style="margin:8px 0"><summary><strong>${esc(d.n)}</strong> · ${esc(d.t)} ${badgeEstado(st)}${ses && ses.estado === 'en_curso' ? '<span class="badge cur">en curso</span>' : ''}</summary><div class="cuerpo">`;
+      if (ses && ses.estado !== 'en_curso') h += `<div style="margin:10px 0"><button type="button" class="btn mini" data-act="verses" data-id="${esc(ses.id)}">Ver informe de ${esc(fechaCorta(ses.fecha))}</button></div>`;
       d.bloques.forEach(b => {
         h += `<h3 style="margin-top:12px">${esc(b.t)}</h3><p class="small">${esc(b.i)}</p><table class="res">` +
           b.items.map(it => `<tr><td>${esc(it.n)}<br><span class="small" style="font-weight:400">${esc(it.d)}</span></td><td>${esc(objetivo(it))}</td></tr>`).join('') + '</table>';
       });
       h += `</div></details>`;
     });
+    const hayInformes = S.sesiones.some(s => s.semanaId === w.id);
+    h += `<div style="height:8px"></div><button type="button" class="btn" data-act="ampliar" data-id="${esc(w.id)}">Ampliar: añadir otra semana igual a esta</button>`;
+    if (w.ampliada && !hayInformes) h += `<div style="height:8px"></div><button type="button" class="btn warn" data-act="quitarsem" data-id="${esc(w.id)}">Quitar esta semana añadida</button>`;
     h += `</div></details>`;
   });
-  return h;
+  return h + tarjetaImportar();
+}
+
+function tarjetaImportar() {
+  return `<div class="card"><h3>Importar plan</h3><p class="soft">Elige el archivo .json del plan. Sustituye al plan actual (los informes ya enviados no se tocan).</p>
+    <input type="file" id="planfile" accept=".json,application/json" style="font-size:17px;width:100%"></div>`;
 }
 
 function vistaCoach() {
   const enviadas = S.sesiones.filter(s => s.estado !== 'en_curso');
   const pend = enviadas.filter(s => !s.revisado).length;
   const curso = S.sesiones.length - enviadas.length;
+  const ws = SEMS();
+  const iAct = ws.findIndex(w => resumenSemana(w).estado !== 'revisada');
   const tabs = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">
-    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Sesiones<small>${pend} sin revisar${curso ? ' · ' + curso + ' en curso' : ''}</small></button>
-    <button type="button" class="tab ${S.tabC === 'plan' ? 'on' : ''}" data-act="tabc" data-v="plan">Plan<small>${S.plan ? 'programación' : 'falta cargar'}</small></button>
+    <button type="button" class="tab ${S.tabC === 'prog' ? 'on' : ''}" data-act="tabc" data-v="prog">Programación<small>${ws.length ? (iAct >= 0 ? 'semana ' + (iAct + 1) + ' en curso' : 'todo revisado') : 'falta cargar'}</small></button>
+    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Informes<small>${pend} sin revisar${curso ? ' · ' + curso + ' en curso' : ''}</small></button>
     <button type="button" class="tab ${S.tabC === 'copia' ? 'on' : ''}" data-act="tabc" data-v="copia">Copia<small>y acceso</small></button></div>`;
   let h = `${topbar()}<div class="wrap">${tabs}`;
   if (S.msg) h += `<div class="ok">${esc(S.msg)}</div>`;
 
+  if (S.tabC === 'prog') h += vistaProgramacion();
+
   if (S.tabC === 'sesiones') {
-    h += `<div class="chips"><button type="button" class="chip ${S.filtro === 'pend' ? 'on' : ''}" data-act="filtro" data-v="pend">Sin revisar</button><button type="button" class="chip ${S.filtro === 'curso' ? 'on' : ''}" data-act="filtro" data-v="curso">En curso</button><button type="button" class="chip ${S.filtro === 'todas' ? 'on' : ''}" data-act="filtro" data-v="todas">Todas</button></div>`;
-    const l = S.sesiones.filter(s => S.filtro === 'todas' || (S.filtro === 'curso' ? s.estado === 'en_curso' : (s.estado !== 'en_curso' && !s.revisado)));
-    if (!l.length) h += `<div class="card">${S.sesiones.length ? 'No hay sesiones en esta lista.' : 'Todavía no hay sesiones.'}</div>`;
+    h += `<div class="chips">` + [['pend', 'Sin revisar'], ['curso', 'En curso'], ['rev', 'Revisadas'], ['todas', 'Todas']].map(([v, t]) => `<button type="button" class="chip ${S.filtro === v ? 'on' : ''}" data-act="filtro" data-v="${v}">${t}</button>`).join('') + `</div>`;
+    const l = S.sesiones.filter(s => S.filtro === 'todas' || (S.filtro === 'curso' ? s.estado === 'en_curso' : (S.filtro === 'rev' ? (s.estado !== 'en_curso' && s.revisado) : (s.estado !== 'en_curso' && !s.revisado))));
+    if (!l.length) h += `<div class="card">${S.sesiones.length ? 'No hay informes en esta lista.' : 'Todavía no hay informes.'}</div>`;
     l.forEach(s => {
       const enCurso = s.estado === 'en_curso';
       h += `<details class="ses" data-id="${esc(s.id)}" ${S.abiertas[s.id] ? 'open' : ''}><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion({ ...s, comentario: '' })}`;
@@ -592,19 +641,8 @@ function vistaCoach() {
     });
   }
 
-  if (S.tabC === 'plan') {
-    h += vistaProgramacion();
-    if (S.plan && S.plan.fases) {
-      h += `<div class="card"><h3>Fase por defecto</h3><p class="soft">Solo se usa mientras ninguna fase tenga fecha de inicio que ya haya llegado.</p>
-      <label class="lab" for="fase">Fase activa</label>
-      <select id="fase">${S.plan.fases.map(f => `<option value="${esc(f.id)}" ${f.id === S.plan.faseActiva ? 'selected' : ''}>${esc(f.nombre)} · ${f.dias.length} días</option>`).join('')}</select></div>`;
-    }
-    h += `<div class="card"><h3>Importar plan</h3><p class="soft">Elige el archivo .json del plan. Sustituye al plan actual (las sesiones ya enviadas no se tocan).</p>
-      <input type="file" id="planfile" accept=".json,application/json" style="font-size:17px;width:100%"></div>`;
-  }
-
   if (S.tabC === 'copia') {
-    h += `<div class="card"><h3>Copia de seguridad</h3><p class="soft">Descarga todo (plan, sesiones y consentimiento) en un archivo.</p><button type="button" class="btn pri" data-act="backup">Descargar copia</button></div>
+    h += `<div class="card"><h3>Copia de seguridad</h3><p class="soft">Descarga todo (plan, informes y consentimiento) en un archivo.</p><button type="button" class="btn pri" data-act="backup">Descargar copia</button></div>
     <div class="card"><h3>Consentimiento del paciente</h3><p>${S.consent ? 'Firmado el ' + esc((S.consent.fecha || '').slice(0, 10)) : 'Aún no lo ha firmado.'}</p></div>`;
   }
   return h + `<p class="pie small">${VERSION}</p></div>`;
@@ -654,14 +692,16 @@ function toastPac(m) { S.aviso = ''; S.msg = m; render(); window.scrollTo({ top:
 async function importarPlan(file) {
   try {
     const plan = JSON.parse(await file.text());
-    if (!plan || !Array.isArray(plan.fases) || !plan.fases.length) throw new Error('fases');
-    plan.fases.forEach(f => {
-      if (!f.id || !Array.isArray(f.dias) || !f.dias.length) throw new Error('dias');
-      f.dias.forEach(d => {
+    if (!plan || !Array.isArray(plan.semanas) || !plan.semanas.length) throw new Error('semanas');
+    const idsSem = new Set();
+    plan.semanas.forEach(w => {
+      if (!w.id || idsSem.has(w.id) || !Array.isArray(w.dias) || !w.dias.length) throw new Error('semana ' + (w.id || '?'));
+      idsSem.add(w.id);
+      w.dias.forEach(d => {
         if (!d.id || !Array.isArray(d.bloques)) throw new Error('bloques');
         const ids = new Set();
         d.bloques.forEach(b => b.items.forEach(it => {
-          if (!it.id || !it.n || !it.tipo) throw new Error('item');
+          if (!it.id || !it.n || !it.tipo) throw new Error('ejercicio');
           if (ids.has(it.id)) throw new Error('repetido ' + it.id);
           ids.add(it.id);
         }));
@@ -669,12 +709,36 @@ async function importarPlan(file) {
     });
     if (!confirm('¿Cargar este plan? Sustituye al plan actual.')) return;
     plan.actualizado = ahora();
-    if (!plan.faseActiva || !plan.fases.some(f => f.id === plan.faseActiva)) plan.faseActiva = plan.fases[0].id;
     await S.B.db.set('plan', 'actual', plan);
     toast('Plan cargado ✓');
   } catch (e) {
     toast('El archivo no es un plan válido (' + (e.message || 'error') + ').');
   }
+}
+
+async function ampliarSemana(id) {
+  if (!confirm('¿Añadir una semana más, igual que esta, justo después?')) return;
+  try {
+    const sem = clonar(S.plan.semanas), i = sem.findIndex(w => w.id === id);
+    if (i < 0) return;
+    const raiz = sem[i].raiz || sem[i].id;
+    const extras = sem.filter(w => w.raiz === raiz).length;
+    const nueva = clonar(sem[i]);
+    nueva.id = raiz + 'x' + (extras + 1); nueva.raiz = raiz; nueva.ampliada = true;
+    let pos = i; sem.forEach((w, k) => { if (w.id === raiz || w.raiz === raiz) pos = Math.max(pos, k); });
+    sem.splice(pos + 1, 0, nueva);
+    await S.B.db.update('plan', 'actual', { semanas: sem });
+    toast('Semana añadida ✓');
+  } catch (e) { toast('No se pudo añadir la semana.'); }
+}
+
+async function quitarSemana(id) {
+  if (S.sesiones.some(s => s.semanaId === id)) { toast('Esa semana ya tiene informes y no se puede quitar.'); return; }
+  if (!confirm('¿Quitar esta semana añadida?')) return;
+  try {
+    await S.B.db.update('plan', 'actual', { semanas: S.plan.semanas.filter(w => w.id !== id) });
+    toast('Semana quitada ✓');
+  } catch (e) { toast('No se pudo quitar la semana.'); }
 }
 
 async function copiaSeguridad() {
@@ -722,6 +786,7 @@ document.addEventListener('click', async ev => {
     case 'tabp': S.tabP = v; return render();
     case 'tabc': S.tabC = v; S.msg = ''; return render();
     case 'filtro': S.filtro = v; return render();
+    case 'sem': flushAuto(); S.semanaId = v; S.diaId = null; S.draft = null; S.aviso = ''; return render();
     case 'dia': flushAuto(); S.diaId = v; S.draft = null; S.aviso = ''; return render();
     case 'step': {
       const s = d.ej[b.dataset.ej].sets[+b.dataset.i], c = b.dataset.campo;
@@ -747,11 +812,19 @@ document.addEventListener('click', async ev => {
       catch (e) { toast('No se pudo reabrir.'); }
       return;
     }
+    case 'verses': {
+      const id = b.dataset.id;
+      S.tabC = 'sesiones'; S.filtro = 'todas'; S.abiertas[id] = true; render();
+      setTimeout(() => { const el = document.querySelector('details.ses[data-id="' + id.replace(/"/g, '') + '"]'); if (el) el.scrollIntoView({ block: 'start' }); }, 50);
+      return;
+    }
+    case 'ampliar': return ampliarSemana(b.dataset.id);
+    case 'quitarsem': return quitarSemana(b.dataset.id);
     case 'backup': return copiaSeguridad();
   }
 });
 
-// recordar qué sesiones tiene abiertas el entrenador (los avisos en tiempo real no deben cerrarlas)
+// recordar qué desplegables tiene abiertos el entrenador (los avisos en tiempo real no deben cerrarlos)
 document.addEventListener('toggle', ev => {
   const t = ev.target;
   if (t.tagName === 'DETAILS' && t.dataset.id) S.abiertas[t.dataset.id] = t.open;
@@ -768,17 +841,8 @@ document.addEventListener('input', ev => {
 document.addEventListener('change', async ev => {
   const t = ev.target;
   if (t.id === 'acepto') S.acepto = t.checked;
-  if (t.id === 'fecha' && t.value) { flushAuto(); S.fecha = t.value; S.draft = null; S.diaId = null; S.aviso = ''; render(); }
-  if (t.id === 'fase') { try { await S.B.db.update('plan', 'actual', { faseActiva: t.value }); toast('Fase activa cambiada ✓'); } catch (e) { toast('No se pudo cambiar la fase.'); } }
+  if (t.id === 'fecha' && t.value && S.draft) { S.draft.fecha = t.value; guardarLocal(); }
   if (t.id === 'planfile' && t.files && t.files[0]) importarPlan(t.files[0]);
-  if (t.dataset && t.dataset.fase !== undefined && t.type === 'date') {
-    try {
-      const fases = clonar(S.plan.fases), f = fases.find(x => x.id === t.dataset.fase);
-      if (t.value) f.desde = t.value; else delete f.desde;
-      await S.B.db.update('plan', 'actual', { fases });
-      toast(t.value ? 'Fecha de inicio guardada ✓' : 'Fecha de inicio quitada ✓');
-    } catch (e) { toast('No se pudo guardar la fecha.'); }
-  }
 });
 
 arrancar();
