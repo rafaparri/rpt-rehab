@@ -98,6 +98,7 @@
   .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:14px; font-weight:700; margin:2px 4px 2px 0; }
   .badge.rev { background:var(--teal2); color:var(--teal); }
   .badge.pen { background:var(--warn2); color:var(--warn); }
+  .badge.cur { background:var(--alt); color:var(--soft); border:1px solid var(--line); }
   details.ses { background:var(--card); border:1px solid var(--line); border-radius:14px; margin:10px 0; padding:0; }
   details.ses > summary { padding:14px; cursor:pointer; list-style:none; }
   details.ses > summary::-webkit-details-marker { display:none; }
@@ -124,7 +125,7 @@ const CONFIG = {
   appId: "1:439754311440:web:2a6ad9137640cd27884795"
 };
 const COACH_EMAIL = 'rafa.parri@gmail.com';
-const VERSION = 'v1.0 · 24 oct 2026';
+const VERSION = 'v1.1 · 24 oct 2026';
 const FB = '10.12.2';
 
 /* ============ Utilidades ============ */
@@ -161,7 +162,7 @@ const S = {
   plan: null, sesiones: [], consent: null,
   fecha: hoy(), diaId: null, draft: null, tabP: 'hoy', tabC: 'sesiones', filtro: 'pend',
   msg: '', aviso: '', lastSend: 0, email: store.get('rpt_email') || '', unsub: [], sent: null,
-  abiertas: {}, coms: {}
+  abiertas: {}, coms: {}, autoT: null, acepto: false
 };
 
 /* ============ Backend Firebase ============ */
@@ -262,14 +263,21 @@ async function onUser(u) {
 }
 
 /* ============ Plan y borrador (paciente) ============ */
-const faseActiva = () => (S.plan && S.plan.fases || []).find(f => f.id === S.plan.faseActiva) || (S.plan && S.plan.fases && S.plan.fases[0]) || null;
+// La fase que toca en una fecha: la última cuya fecha de inicio ya ha llegado; si ninguna tiene fecha, la "fase activa" elegida a mano
+function faseEn(fecha) {
+  const fs = (S.plan && S.plan.fases) || [];
+  if (!fs.length) return null;
+  const con = fs.filter(f => f.desde && f.desde <= fecha).sort((a, b) => b.desde.localeCompare(a.desde));
+  return con[0] || fs.find(f => f.id === S.plan.faseActiva) || fs[0];
+}
+const faseActiva = () => faseEn(S.fecha);
 
 function diaPorDefecto(fase) {
   const idHoy = ID_DIA[parseF(S.fecha).getDay()];
   const hoyDia = fase.dias.find(d => d.id === idHoy);
   if (hoyDia) return hoyDia.id;
   const lun = lunesDe(S.fecha), dom = addDias(lun, 6);
-  const pend = fase.dias.find(d => !S.sesiones.some(s => s.diaId === d.id && s.faseId === fase.id && s.fecha >= lun && s.fecha <= dom));
+  const pend = fase.dias.find(d => !S.sesiones.some(s => s.diaId === d.id && s.faseId === fase.id && s.estado !== 'en_curso' && s.fecha >= lun && s.fecha <= dom));
   return (pend || fase.dias[0]).id;
 }
 function diaActual(fase) {
@@ -303,17 +311,40 @@ function prepararDraft(fase, dia) {
   const key = S.fecha + '_' + fase.id + '_' + dia.id;
   const ya = S.sesiones.find(x => x.id === key);
   if (!S.draft || S.draft.key !== key) {
-    if (ya) { S.draft = clonar(ya); S.draft.key = key; S.draft.enviada = true; }
+    if (ya) { S.draft = clonar(ya); S.draft.key = key; S.draft.enviada = ya.estado !== 'en_curso'; }
     else {
       let loc = null;
       try { loc = JSON.parse(store.get('rpt_draft_' + key) || 'null'); } catch (e) {}
       S.draft = loc && loc.key === key ? loc : nuevoDraft(fase, dia, key);
     }
   }
-  if (ya) { S.draft.revisado = !!ya.revisado; S.draft.comentario = ya.comentario || ''; S.draft.enviada = true; S.draft.enviadaEn = ya.enviadaEn; }
+  if (ya) { S.draft.revisado = !!ya.revisado; S.draft.comentario = ya.comentario || ''; S.draft.enviada = ya.estado !== 'en_curso'; S.draft.enviadaEn = ya.enviadaEn || null; }
   return S.draft;
 }
-function guardarLocal() { if (S.draft && !S.draft.revisado) store.set('rpt_draft_' + S.draft.key, JSON.stringify(S.draft)); }
+function guardarLocal() {
+  if (S.draft && !S.draft.revisado) { store.set('rpt_draft_' + S.draft.key, JSON.stringify(S.draft)); programarAuto(); }
+}
+// Guardado en vivo: cada cambio se manda al servidor 1,5 s después (así el entrenador ve la sesión "en curso")
+function programarAuto() { clearTimeout(S.autoT); S.autoT = setTimeout(autoguardar, 1500); }
+function flushAuto() { if (S.autoT) { clearTimeout(S.autoT); S.autoT = null; autoguardar(); } }
+async function autoguardar() {
+  S.autoT = null;
+  const d = S.draft;
+  if (!d || d.revisado || !S.B || S.role !== 'paciente') return;
+  try { await S.B.db.set('sesiones', d.key, docDesdeDraft(d, d.enviada ? 'enviada' : 'en_curso')); } catch (e) { /* se reintenta en el siguiente cambio */ }
+}
+function docDesdeDraft(d, estado) {
+  const c = contar(d.ej);
+  return {
+    fecha: d.fecha, diaId: d.diaId, diaN: d.diaN, diaT: d.diaT, faseId: d.faseId, ej: d.ej, estado,
+    fatiga: d.fatiga == null ? null : d.fatiga,
+    dolor: d.dolor.hay === true ? { hay: true, zona: (d.dolor.zona || '').slice(0, 200) } : { hay: d.dolor.hay, zona: '' },
+    entum: d.entum.hay === true ? { hay: true, zonas: d.entum.zonas, cuando: d.entum.cuando || '', min: d.entum.min || 0 } : { hay: d.entum.hay, zonas: [], cuando: '', min: 0 },
+    notas: (d.notas || '').slice(0, 2000), resumen: { hechas: c.h, total: c.t },
+    enviadaEn: estado === 'enviada' ? (d.enviadaEn || ahora()) : (d.enviadaEn || null),
+    actualizadaEn: ahora(), revisado: false, comentario: ''
+  };
+}
 
 function contar(ej) {
   let t = 0, h = 0;
@@ -370,7 +401,7 @@ function vistaConsent() {
     <p>Solo los verá tu entrenador y se usan únicamente para preparar y ajustar tu entrenamiento. Se guardan en un servidor seguro en Europa, protegido con tu correo.</p>
     <p>Puedes pedirle que te los muestre o que los borre cuando quieras. Esta aplicación no sustituye la valoración de un médico o fisioterapeuta.</p>
     <label style="display:flex;gap:12px;align-items:flex-start;margin:16px 0;font-size:18px">
-      <input type="checkbox" id="acepto" style="width:30px;height:30px;flex:none;accent-color:var(--teal)">
+      <input type="checkbox" id="acepto" ${S.acepto ? 'checked' : ''} style="width:30px;height:30px;flex:none;accent-color:var(--teal)">
       <span>He leído esto y estoy de acuerdo.</span></label>
     <button type="button" class="btn pri" data-act="aceptar">Continuar</button>
   </div></div>`;
@@ -402,11 +433,16 @@ function detalleSesion(s) {
   return h;
 }
 
+function estadoBadge(s) {
+  if (s.estado === 'en_curso') return '<span class="badge cur">En curso</span>';
+  return `<span class="badge ${s.revisado ? 'rev' : 'pen'}">${s.revisado ? 'Revisada' : 'Sin revisar'}</span>`;
+}
+
 function cabSesion(s) {
   const c = contar(s.ej);
   return `<strong>${esc(fechaCorta(s.fecha))}</strong> · ${esc(s.diaT || '')} <span class="soft">(${esc(s.faseId || '')})</span><br>
   <span class="soft">${c.h}/${c.t} series · cansancio ${s.fatiga ?? '—'}/10</span><br>
-  <span class="badge ${s.revisado ? 'rev' : 'pen'}">${s.revisado ? 'Revisada' : 'Sin revisar'}</span>${s.dolor && s.dolor.hay ? '<span class="badge pen">⚠ dolor</span>' : ''}${s.entum && s.entum.hay ? '<span class="badge pen">⚠ entumecimiento</span>' : ''}`;
+  ${estadoBadge(s)}${s.dolor && s.dolor.hay ? '<span class="badge pen">⚠ dolor</span>' : ''}${s.entum && s.entum.hay ? '<span class="badge pen">⚠ entumecimiento</span>' : ''}`;
 }
 
 /* ----- Paciente ----- */
@@ -422,8 +458,9 @@ function vistaPaciente() {
   const d = prepararDraft(fase, dia);
   const lun = lunesDe(S.fecha), dom = addDias(lun, 6);
   const dias = `<div class="tabs" style="grid-template-columns:repeat(${fase.dias.length},1fr)">` + fase.dias.map(x => {
-    const hecho = S.sesiones.some(s => s.diaId === x.id && s.faseId === fase.id && s.fecha >= lun && s.fecha <= dom);
-    return `<button type="button" class="tab ${x.id === dia.id ? 'on' : ''}" data-act="dia" data-v="${esc(x.id)}">${esc(x.n)}<small class="${hecho ? 'hecho' : ''}">${hecho ? '✓ enviada' : esc(x.t)}</small></button>`;
+    const ses = S.sesiones.find(s => s.diaId === x.id && s.faseId === fase.id && s.fecha >= lun && s.fecha <= dom);
+    const hecho = ses && ses.estado !== 'en_curso', curso = ses && ses.estado === 'en_curso';
+    return `<button type="button" class="tab ${x.id === dia.id ? 'on' : ''}" data-act="dia" data-v="${esc(x.id)}">${esc(x.n)}<small class="${hecho ? 'hecho' : ''}">${hecho ? '✓ enviada' : (curso ? 'en curso' : esc(x.t))}</small></button>`;
   }).join('') + '</div>';
 
   let h = `${topbar()}<div class="wrap">${tabs}
@@ -489,37 +526,80 @@ function stepper(label, valor, ej, i, campo, unidad) {
 }
 
 /* ----- Entrenador ----- */
+function objetivo(it) {
+  const n = it.series || 1;
+  if (it.tipo === 'fuerza') return n + ' × ' + (it.obj || '?') + ' rep' + (it.kg ? ' · ' + fmt(it.kg) + ' kg' : '');
+  if (it.tipo === 'tiempo') return n + ' × ' + (it.obj || '?') + ' s';
+  if (it.tipo === 'marcha') return n + ' × ' + (it.obj || '?') + ' m';
+  return n > 1 ? n + ' series' : '1 vez';
+}
+
+function vistaProgramacion() {
+  if (!S.plan || !S.plan.fases) return `<div class="card"><h3>Programación</h3><p class="soft">Todavía no hay plan cargado. Importa el archivo del plan.</p></div>`;
+  const fs = S.plan.fases, act = faseEn(hoy());
+  const iAct = fs.findIndex(f => f.id === act.id);
+  let h = `<h2 style="margin-top:6px">Programación</h2><p class="soft">Todo el plan, lo haya hecho ya o no. Si pones una fecha de inicio a una fase, el paciente pasa a ella ese día sin que tengas que tocar nada.</p>`;
+  fs.forEach((f, i) => {
+    const hechos = f.dias.filter(d => S.sesiones.some(s => s.faseId === f.id && s.diaId === d.id && s.estado !== 'en_curso')).length;
+    const chip = i === iAct ? '<span class="badge rev">Activa</span>' : (i < iAct ? '<span class="badge cur">Anterior</span>' : '<span class="badge pen">Próxima</span>');
+    const key = 'f_' + f.id;
+    const abierta = S.abiertas[key] !== undefined ? S.abiertas[key] : i === iAct;
+    h += `<details class="ses" data-id="${esc(key)}" ${abierta ? 'open' : ''}><summary><strong>${esc(f.nombre)}</strong> · ${f.dias.length} días ${chip}<br>
+      <span class="soft">${f.desde ? 'Empieza el ' + esc(fechaCorta(f.desde)) + ' · ' : ''}${hechos} de ${f.dias.length} días hechos en la app</span></summary><div class="cuerpo">
+      <p class="soft" style="margin-top:10px">${esc(f.nota || '')}</p>
+      <label class="lab" for="desde_${esc(f.id)}">Empieza el (opcional)</label>
+      <input type="date" id="desde_${esc(f.id)}" data-fase="${esc(f.id)}" value="${esc(f.desde || '')}"><div style="height:8px"></div>`;
+    f.dias.forEach(d => {
+      const n = S.sesiones.filter(s => s.faseId === f.id && s.diaId === d.id && s.estado !== 'en_curso').length;
+      const dk = 'd_' + f.id + '_' + d.id;
+      const etiqueta = n ? `<span class="badge rev">✓ hecho ${n} ${n > 1 ? 'veces' : 'vez'}</span>` : `<span class="badge ${i < iAct ? 'cur' : 'pen'}">${i < iAct ? 'sin datos en la app' : 'pendiente'}</span>`;
+      h += `<details class="ses" data-id="${esc(dk)}" ${S.abiertas[dk] ? 'open' : ''} style="margin:8px 0"><summary><strong>${esc(d.n)}</strong> · ${esc(d.t)} ${etiqueta}</summary><div class="cuerpo">`;
+      d.bloques.forEach(b => {
+        h += `<h3 style="margin-top:12px">${esc(b.t)}</h3><p class="small">${esc(b.i)}</p><table class="res">` +
+          b.items.map(it => `<tr><td>${esc(it.n)}<br><span class="small" style="font-weight:400">${esc(it.d)}</span></td><td>${esc(objetivo(it))}</td></tr>`).join('') + '</table>';
+      });
+      h += `</div></details>`;
+    });
+    h += `</div></details>`;
+  });
+  return h;
+}
+
 function vistaCoach() {
-  const pend = S.sesiones.filter(s => !s.revisado).length;
+  const enviadas = S.sesiones.filter(s => s.estado !== 'en_curso');
+  const pend = enviadas.filter(s => !s.revisado).length;
+  const curso = S.sesiones.length - enviadas.length;
   const tabs = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">
-    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Sesiones<small>${pend} sin revisar</small></button>
-    <button type="button" class="tab ${S.tabC === 'plan' ? 'on' : ''}" data-act="tabc" data-v="plan">Plan<small>${S.plan ? 'cargado' : 'falta cargar'}</small></button>
+    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Sesiones<small>${pend} sin revisar${curso ? ' · ' + curso + ' en curso' : ''}</small></button>
+    <button type="button" class="tab ${S.tabC === 'plan' ? 'on' : ''}" data-act="tabc" data-v="plan">Plan<small>${S.plan ? 'programación' : 'falta cargar'}</small></button>
     <button type="button" class="tab ${S.tabC === 'copia' ? 'on' : ''}" data-act="tabc" data-v="copia">Copia<small>y acceso</small></button></div>`;
   let h = `${topbar()}<div class="wrap">${tabs}`;
   if (S.msg) h += `<div class="ok">${esc(S.msg)}</div>`;
 
   if (S.tabC === 'sesiones') {
-    h += `<div class="chips"><button type="button" class="chip ${S.filtro === 'pend' ? 'on' : ''}" data-act="filtro" data-v="pend">Sin revisar</button><button type="button" class="chip ${S.filtro === 'todas' ? 'on' : ''}" data-act="filtro" data-v="todas">Todas</button></div>`;
-    const l = S.sesiones.filter(s => S.filtro === 'todas' || !s.revisado);
-    if (!l.length) h += `<div class="card">${S.sesiones.length ? 'No hay sesiones pendientes de revisar.' : 'Todavía no hay sesiones enviadas.'}</div>`;
+    h += `<div class="chips"><button type="button" class="chip ${S.filtro === 'pend' ? 'on' : ''}" data-act="filtro" data-v="pend">Sin revisar</button><button type="button" class="chip ${S.filtro === 'curso' ? 'on' : ''}" data-act="filtro" data-v="curso">En curso</button><button type="button" class="chip ${S.filtro === 'todas' ? 'on' : ''}" data-act="filtro" data-v="todas">Todas</button></div>`;
+    const l = S.sesiones.filter(s => S.filtro === 'todas' || (S.filtro === 'curso' ? s.estado === 'en_curso' : (s.estado !== 'en_curso' && !s.revisado)));
+    if (!l.length) h += `<div class="card">${S.sesiones.length ? 'No hay sesiones en esta lista.' : 'Todavía no hay sesiones.'}</div>`;
     l.forEach(s => {
-      h += `<details class="ses" data-id="${esc(s.id)}" ${S.abiertas[s.id] ? 'open' : ''}><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion({ ...s, comentario: '' })}
-        <label class="lab" for="com_${esc(s.id)}">Tu comentario para el paciente</label>
+      const enCurso = s.estado === 'en_curso';
+      h += `<details class="ses" data-id="${esc(s.id)}" ${S.abiertas[s.id] ? 'open' : ''}><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion({ ...s, comentario: '' })}`;
+      if (enCurso) h += `<div class="aviso" style="font-size:16px">Está en curso: aún no ha pulsado "Enviar". Podrás revisarla cuando la envíe.</div>`;
+      else h += `<label class="lab" for="com_${esc(s.id)}">Tu comentario para el paciente</label>
         <textarea id="com_${esc(s.id)}" maxlength="1000">${esc(S.coms[s.id] !== undefined ? S.coms[s.id] : (s.comentario || ''))}</textarea><div style="height:10px"></div>
         ${s.revisado ? `<button type="button" class="btn" data-act="reabrir" data-id="${esc(s.id)}">Reabrir para que pueda corregir</button><div style="height:8px"></div><button type="button" class="btn" data-act="revisar" data-id="${esc(s.id)}">Guardar comentario</button>`
-          : `<button type="button" class="btn pri" data-act="revisar" data-id="${esc(s.id)}">Marcar como revisada</button>`}
-        </div></details>`;
+          : `<button type="button" class="btn pri" data-act="revisar" data-id="${esc(s.id)}">Marcar como revisada</button>`}`;
+      h += `</div></details>`;
     });
   }
 
   if (S.tabC === 'plan') {
-    h += `<div class="card"><h3>Plan actual</h3>`;
+    h += vistaProgramacion();
     if (S.plan && S.plan.fases) {
-      h += `<p class="soft">${S.plan.fases.length} fases. Cargado: ${esc((S.plan.actualizado || '').slice(0, 10) || '—')}</p>
-      <label class="lab" for="fase">Fase activa (la que ve el paciente)</label>
-      <select id="fase">${S.plan.fases.map(f => `<option value="${esc(f.id)}" ${f.id === S.plan.faseActiva ? 'selected' : ''}>${esc(f.nombre)} · ${f.dias.length} días</option>`).join('')}</select>`;
-    } else h += `<p class="soft">Todavía no hay plan cargado. Importa el archivo del plan.</p>`;
-    h += `</div><div class="card"><h3>Importar plan</h3><p class="soft">Elige el archivo .json del plan. Sustituye al plan actual (las sesiones ya enviadas no se tocan).</p>
+      h += `<div class="card"><h3>Fase por defecto</h3><p class="soft">Solo se usa mientras ninguna fase tenga fecha de inicio que ya haya llegado.</p>
+      <label class="lab" for="fase">Fase activa</label>
+      <select id="fase">${S.plan.fases.map(f => `<option value="${esc(f.id)}" ${f.id === S.plan.faseActiva ? 'selected' : ''}>${esc(f.nombre)} · ${f.dias.length} días</option>`).join('')}</select></div>`;
+    }
+    h += `<div class="card"><h3>Importar plan</h3><p class="soft">Elige el archivo .json del plan. Sustituye al plan actual (las sesiones ya enviadas no se tocan).</p>
       <input type="file" id="planfile" accept=".json,application/json" style="font-size:17px;width:100%"></div>`;
   }
 
@@ -558,15 +638,8 @@ async function enviarSesion() {
   if (d.entum.hay == null) falta.push('entumecimiento');
   if (falta.length) { S.aviso = 'Falta responder: ' + falta.join(', ') + '.'; render(); const a = $('#aviso'); if (a) a.scrollIntoView({ block: 'center' }); return; }
   S.aviso = '';
-  const c = contar(d.ej);
-  const doc = {
-    fecha: d.fecha, diaId: d.diaId, diaN: d.diaN, diaT: d.diaT, faseId: d.faseId, ej: d.ej,
-    fatiga: d.fatiga,
-    dolor: d.dolor.hay ? { hay: true, zona: (d.dolor.zona || '').slice(0, 200) } : { hay: false, zona: '' },
-    entum: d.entum.hay ? { hay: true, zonas: d.entum.zonas, cuando: d.entum.cuando || '', min: d.entum.min || 0 } : { hay: false, zonas: [], cuando: '', min: 0 },
-    notas: (d.notas || '').slice(0, 2000), resumen: { hechas: c.h, total: c.t },
-    enviadaEn: d.enviadaEn || ahora(), actualizadaEn: ahora(), revisado: false, comentario: ''
-  };
+  clearTimeout(S.autoT); S.autoT = null;
+  const doc = docDesdeDraft(d, 'enviada');
   try {
     await S.B.db.set('sesiones', d.key, doc);
     store.del('rpt_draft_' + d.key);
@@ -649,7 +722,7 @@ document.addEventListener('click', async ev => {
     case 'tabp': S.tabP = v; return render();
     case 'tabc': S.tabC = v; S.msg = ''; return render();
     case 'filtro': S.filtro = v; return render();
-    case 'dia': S.diaId = v; S.draft = null; S.aviso = ''; return render();
+    case 'dia': flushAuto(); S.diaId = v; S.draft = null; S.aviso = ''; return render();
     case 'step': {
       const s = d.ej[b.dataset.ej].sets[+b.dataset.i], c = b.dataset.campo;
       s[c] = Math.max(0, Math.min(MAX[c], Math.round(((s[c] || 0) + (+b.dataset.d) * STEP[c]) * 10) / 10));
@@ -694,9 +767,18 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'fecha' && t.value) { S.fecha = t.value; S.draft = null; S.diaId = null; S.aviso = ''; render(); }
+  if (t.id === 'acepto') S.acepto = t.checked;
+  if (t.id === 'fecha' && t.value) { flushAuto(); S.fecha = t.value; S.draft = null; S.diaId = null; S.aviso = ''; render(); }
   if (t.id === 'fase') { try { await S.B.db.update('plan', 'actual', { faseActiva: t.value }); toast('Fase activa cambiada ✓'); } catch (e) { toast('No se pudo cambiar la fase.'); } }
   if (t.id === 'planfile' && t.files && t.files[0]) importarPlan(t.files[0]);
+  if (t.dataset && t.dataset.fase !== undefined && t.type === 'date') {
+    try {
+      const fases = clonar(S.plan.fases), f = fases.find(x => x.id === t.dataset.fase);
+      if (t.value) f.desde = t.value; else delete f.desde;
+      await S.B.db.update('plan', 'actual', { fases });
+      toast(t.value ? 'Fecha de inicio guardada ✓' : 'Fecha de inicio quitada ✓');
+    } catch (e) { toast('No se pudo guardar la fecha.'); }
+  }
 });
 
 arrancar();
