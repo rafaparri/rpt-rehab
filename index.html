@@ -114,6 +114,13 @@
   table.res td:first-child { font-weight:600; width:46%; }
   .upd { position:sticky; top:0; z-index:9; background:var(--teal); color:var(--on); padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:17px; font-weight:700; }
   .upd button { min-height:44px; padding:8px 16px; border-radius:10px; border:2px solid var(--on); background:var(--on); color:var(--teal); font-size:17px; font-weight:700; }
+  .solo-print { display:none; }
+  @media print {
+    .top, .tabs, .noprint, .upd, select, label.lab, .pie { display:none !important; }
+    .solo-print { display:block; margin-bottom:10px; }
+    body { background:#fff; color:#000; font-size:12pt; padding:0; }
+    .card, details.ses { border:1px solid #999; break-inside:avoid; }
+  }
   .pie { text-align:center; margin-top:30px; }
   noscript { display:block; padding:20px; }
 </style>
@@ -133,7 +140,7 @@ const CONFIG = {
   appId: "1:439754311440:web:2a6ad9137640cd27884795"
 };
 const COACH_EMAIL = 'rafa.parri@gmail.com';
-const VERSION = 'v2.4 · 26 oct 2026';
+const VERSION = 'v2.5 · 26 oct 2026';
 const FB = '10.12.2';
 
 /* ============ Utilidades ============ */
@@ -166,7 +173,7 @@ const S = {
   plan: null, sesiones: [], consent: null,
   semanaId: null, diaId: null, draft: null, tabP: 'hoy', tabC: 'prog', filtro: 'pend',
   msg: '', aviso: '', lastSend: 0, email: store.get('rpt_email') || '', unsub: [], sent: null,
-  abiertas: {}, coms: {}, autoT: null, acepto: false, nueva: false
+  abiertas: {}, coms: {}, autoT: null, acepto: false, nueva: false, infSem: 'todas', txtCopia: ''
 };
 
 /* ============ Backend Firebase ============ */
@@ -306,9 +313,10 @@ function semanaSel() {
   const ws = SEMS();
   if (!ws.length) return null;
   let i = ws.findIndex(w => w.id === S.semanaId);
+  if (i >= 0 && ws[i].archivada) i = -1;
   if (i < 0) {
-    i = ws.findIndex((w, k) => desbloqueada(k) && resumenSemana(w).estado === 'sin_realizar');
-    if (i < 0) { i = 0; ws.forEach((w, k) => { if (desbloqueada(k)) i = k; }); }
+    i = ws.findIndex((w, k) => !w.archivada && desbloqueada(k) && resumenSemana(w).estado === 'sin_realizar');
+    if (i < 0) { i = 0; ws.forEach((w, k) => { if (!w.archivada && desbloqueada(k)) i = k; }); }
     S.semanaId = ws[i].id; S.diaId = null;
   }
   return { w: ws[i], i, abierta: desbloqueada(i) };
@@ -509,6 +517,7 @@ function vistaPaciente() {
   }
   const sel = semanaSel(), w = sel.w;
   const semBtns = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">` + ws.map((x, k) => {
+    if (x.archivada) return '';
     const ab = desbloqueada(k), r = resumenSemana(x);
     const txt = !ab ? '🔒 bloqueada' : (r.estado === 'revisada' ? '✓ revisada' : (r.estado === 'sin_revisar' ? 'enviada' : (r.env || r.curso ? (r.env + '/' + r.n + ' enviados') : 'por hacer')));
     return `<button type="button" class="tab ${x.id === w.id ? 'on' : ''} ${ab ? '' : 'bloq'}" data-act="sem" data-v="${esc(x.id)}">Semana ${k + 1}<small class="${r.estado === 'revisada' ? 'hecho' : ''}">${txt}</small></button>`;
@@ -589,11 +598,16 @@ function vistaProgramacion() {
   if (planAntiguo()) return `<div class="aviso">El plan cargado es de una versión anterior. Importa el archivo <strong>plan-cmt-v2.json</strong> (abajo) para ver la programación semana a semana.</div>${tarjetaImportar()}`;
   const ws = SEMS();
   if (!ws.length) return `<div class="card"><h3>Programación</h3><p class="soft">Todavía no hay plan cargado. Importa el archivo del plan.</p></div>${tarjetaImportar()}`;
-  const iActual = ws.findIndex(w => resumenSemana(w).estado !== 'revisada');
+  const iActual = ws.findIndex(w => !w.archivada && resumenSemana(w).estado !== 'revisada');
   let h = `<h2 style="margin-top:6px">Programación</h2>
   <p class="soft">Todas las semanas, hechas o no. El bloqueo es por bloques (Fase 1, Fase 2…): Mario accede a todas las semanas de su bloque y al siguiente bloque solo cuando has REVISADO todas las del anterior.</p>`;
+  let arch = '';
   ws.forEach((w, i) => {
     const r = resumenSemana(w), ab = desbloqueada(i);
+    if (w.archivada) {
+      arch += `<div class="card" style="margin:8px 0"><strong>Semana ${i + 1}</strong> · ${esc(w.grupo || '')}${w.ampliada ? ' · ampliada' : ''} ${badgeEstado(r.estado)}<br><span class="soft">${r.rev} de ${r.n} días revisados</span><div style="height:8px"></div><button type="button" class="btn mini" data-act="desarchivar" data-id="${esc(w.id)}">Desarchivar</button></div>`;
+      return;
+    }
     const key = 'w_' + w.id;
     const abierta = S.abiertas[key] !== undefined ? S.abiertas[key] : i === iActual;
     h += `<details class="ses" data-id="${esc(key)}" ${abierta ? 'open' : ''}><summary><strong>Semana ${i + 1}</strong> · ${esc(w.grupo || '')}${w.ampliada ? ' · ampliada' : ''} ${badgeEstado(r.estado)}<br>
@@ -611,9 +625,11 @@ function vistaProgramacion() {
     });
     const hayInformes = S.sesiones.some(s => s.semanaId === w.id);
     h += `<div style="height:8px"></div><button type="button" class="btn" data-act="ampliar" data-id="${esc(w.id)}">Ampliar: añadir otra semana igual a esta</button>`;
+    if (r.estado === 'revisada') h += `<div style="height:8px"></div><button type="button" class="btn" data-act="archivar" data-id="${esc(w.id)}">Archivar esta semana</button>`;
     if (w.ampliada && !hayInformes) h += `<div style="height:8px"></div><button type="button" class="btn warn" data-act="quitarsem" data-id="${esc(w.id)}">Quitar esta semana añadida</button>`;
     h += `</div></details>`;
   });
+  if (arch) h += `<h2>Archivadas</h2><p class="soft">Siguen contando para el bloqueo y para los informes; solo se ocultan de la lista.</p>` + arch;
   return h + tarjetaImportar();
 }
 
@@ -622,20 +638,154 @@ function tarjetaImportar() {
     <input type="file" id="planfile" accept=".json,application/json" style="font-size:17px;width:100%"></div>`;
 }
 
+/* ----- Informes y evolución ----- */
+const ordenFecha = (a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.enviadaEn || '').localeCompare(b.enviadaEn || '');
+function sesInforme() {
+  let l = S.sesiones.filter(s => s.estado !== 'en_curso');
+  if (S.infSem !== 'todas') l = l.filter(s => s.semanaId === S.infSem);
+  return l.sort(ordenFecha);
+}
+function mejorSet(e) {
+  const hs = (e.sets || []).filter(x => x.hecho);
+  if (e.tipo === 'fuerza') {
+    let m = null;
+    hs.forEach(x => { const kg = x.kg || 0, rp = x.reps || 0; if (!m || kg > m.kg || (kg === m.kg && rp > m.reps)) m = { kg, reps: rp }; });
+    return m;
+  }
+  if (e.tipo === 'tiempo') return hs.length ? { seg: Math.max(...hs.map(x => x.seg || 0)) } : null;
+  if (e.tipo === 'marcha') return hs.length ? { m: Math.max(...hs.map(x => x.m || 0)) } : null;
+  return { h: hs.length, t: (e.sets || []).length };
+}
+function txtMejor(tipo, m) {
+  if (!m) return '—';
+  if (tipo === 'fuerza') return m.reps + ' rep' + (m.kg ? ' · ' + fmt(m.kg) + ' kg' : '');
+  if (tipo === 'tiempo') return m.seg + ' s';
+  if (tipo === 'marcha') return m.m + ' m';
+  return m.h + '/' + m.t;
+}
+function puntosMejor(tipo, m) {
+  if (!m) return 0;
+  if (tipo === 'fuerza') return m.kg * 1000 + m.reps;
+  if (tipo === 'tiempo') return m.seg;
+  if (tipo === 'marcha') return m.m;
+  return m.h;
+}
+function evolEjercicios(l) {
+  const mp = new Map();
+  l.forEach(s => Object.values(s.ej || {}).forEach(e => {
+    if (!mp.has(e.n)) mp.set(e.n, { n: e.n, tipo: e.tipo, v: [] });
+    mp.get(e.n).v.push({ f: s.fecha, m: mejorSet(e) });
+  }));
+  return [...mp.values()];
+}
+function statsInforme(l) {
+  let t = 0, h = 0, dolor = 0, entum = 0, entMax = 0; const fs = [];
+  l.forEach(s => {
+    const c = contar(s.ej); t += c.t; h += c.h;
+    if (s.fatiga != null) fs.push(s.fatiga);
+    if (s.dolor && s.dolor.hay) dolor++;
+    if (s.entum && s.entum.hay) { entum++; entMax = Math.max(entMax, s.entum.min || 0); }
+  });
+  return { n: l.length, t, h, adh: t ? Math.round(h / t * 100) : 0, fm: fs.length ? fs.reduce((a, b) => a + b, 0) / fs.length : 0, fmax: fs.length ? Math.max(...fs) : 0, dolor, entum, entMax };
+}
+// Orientación prudente para el entrenador; la decisión es siempre suya
+function semaforo(st) {
+  if (!st.n) return null;
+  if (st.dolor || st.entMax >= 60 || st.fm >= 8 || st.adh < 60) {
+    const m = [st.dolor ? 'dolor nuevo' : '', st.entMax >= 60 ? 'entumecimiento de 60 min o más' : '', st.fm >= 8 ? 'cansancio medio muy alto' : '', st.adh < 60 ? 'pocas series completadas' : ''].filter(Boolean).join(', ');
+    return { c: 'pen', t: 'Revisar o reducir', d: 'Conviene valorarlo antes de subir carga: ' + m + '.' };
+  }
+  if (st.fm >= 6.5 || st.entum || st.adh < 85) return { c: 'cur', t: 'Mantener', d: 'Repetir la carga actual hasta que el cansancio baje y complete casi todo.' };
+  return { c: 'rev', t: 'Posible progresión', d: 'Completa casi todo, con cansancio moderado y sin dolor ni entumecimiento. Se puede plantear subir algo (carga, repeticiones o dificultad del equilibrio).' };
+}
+function graficaLinea(pts, max, titulo) {
+  if (!pts.length) return '';
+  const W = 340, H = 150, L = 32, R = 10, T = 12, B = 26, pw = W - L - R, ph = H - T - B;
+  const x = i => L + (pts.length === 1 ? pw / 2 : pw * i / (pts.length - 1));
+  const y = v => T + ph - ph * Math.min(v, max) / max;
+  let g = '';
+  [0, 0.5, 1].forEach(f => {
+    const v = max * f;
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" style="stroke:var(--line)"/><text x="${L - 4}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" style="fill:var(--soft)">${Math.round(v)}</text>`;
+  });
+  const d = pts.map((q, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(q.y).toFixed(1)).join(' ');
+  g += `<path d="${d}" fill="none" stroke-width="3" style="stroke:var(--teal)"/>`;
+  pts.forEach((q, i) => { g += `<circle cx="${x(i).toFixed(1)}" cy="${y(q.y).toFixed(1)}" r="4.5" style="fill:var(--teal)"/>`; });
+  g += `<text x="${L}" y="${H - 6}" font-size="11" style="fill:var(--soft)">${esc(pts[0].x)}</text>`;
+  if (pts.length > 1) g += `<text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="11" style="fill:var(--soft)">${esc(pts[pts.length - 1].x)}</text>`;
+  return `<h3 style="margin-top:14px">${esc(titulo)}</h3><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(titulo)}">${g}</svg>`;
+}
+function periodoTxt() {
+  return S.infSem === 'todas' ? 'todo el entrenamiento' : 'semana ' + (SEMS().findIndex(w => w.id === S.infSem) + 1);
+}
+function textoParaClaude() {
+  const l = sesInforme(), st = statsInforme(l);
+  let t = `INFORME DE EVOLUCIÓN (${periodoTxt()}) — paciente con CMT tipo 1, 20 años, usa andador, marcha en steppage, dedos en garra, miedo a caer.\n`;
+  t += `Sesiones: ${st.n} · Series hechas: ${st.h}/${st.t} (${st.adh}%) · Cansancio medio: ${fmt(st.fm)}/10 (máx ${st.fmax}) · Sesiones con dolor nuevo: ${st.dolor} · Con entumecimiento: ${st.entum} (máx ${st.entMax} min)\n\n`;
+  l.forEach(s => {
+    const c = contar(s.ej);
+    t += `- Semana ${numSemana(s)} ${s.diaN || ''} (${s.fecha}): ${c.h}/${c.t} series, cansancio ${s.fatiga ?? '?'}/10, dolor: ${s.dolor && s.dolor.hay ? 'SÍ ' + (s.dolor.zona || '') : 'no'}, entumecimiento: ${s.entum && s.entum.hay ? 'SÍ ' + (s.entum.zonas || []).join('/') + ' ' + (s.entum.cuando || '') + ' ' + (s.entum.min || 0) + ' min' : 'no'}${s.notas ? ', notas: ' + s.notas : ''}${s.comentario ? ', comentario del entrenador: ' + s.comentario : ''}\n`;
+    Object.values(s.ej || {}).forEach(e => { t += `    · ${e.n}: ${txtMejor(e.tipo, mejorSet(e))}\n`; });
+  });
+  return t;
+}
+function vistaInformes() {
+  const ws = SEMS();
+  const l = sesInforme(), st = statsInforme(l), sf = semaforo(st);
+  let h = `<h2 style="margin-top:6px" class="noprint">Informes de evolución</h2><label class="lab" for="infsem">Periodo</label>
+    <select id="infsem" class="noprint"><option value="todas" ${S.infSem === 'todas' ? 'selected' : ''}>Todo el entrenamiento</option>` +
+    ws.map((w, i) => `<option value="${esc(w.id)}" ${S.infSem === w.id ? 'selected' : ''}>Semana ${i + 1} · ${esc(w.grupo || '')}${w.archivada ? ' (archivada)' : ''}</option>`).join('') + `</select>
+    <div class="solo-print"><strong>RPT Rehab · Informe de evolución</strong> · ${esc(periodoTxt())} · generado ${esc(fechaCorta(hoy()))}</div>`;
+  if (!l.length) return h + '<div class="card">Aún no hay sesiones enviadas en este periodo.</div>';
+
+  h += `<div class="card"><table class="res">
+    <tr><td>Sesiones enviadas</td><td>${st.n}</td></tr>
+    <tr><td>Series hechas</td><td>${st.h} de ${st.t} (${st.adh} %)</td></tr>
+    <tr><td>Cansancio medio</td><td>${fmt(st.fm)} / 10 (máximo ${st.fmax})</td></tr>
+    <tr><td>Sesiones con dolor nuevo</td><td>${st.dolor}</td></tr>
+    <tr><td>Con entumecimiento</td><td>${st.entum}${st.entum ? ' (máx. ' + st.entMax + ' min)' : ''}</td></tr></table></div>`;
+  if (sf) h += `<div class="${sf.c === 'pen' ? 'aviso' : 'ok'}"><span class="badge ${sf.c}">${esc(sf.t.toUpperCase())}</span><br>${esc(sf.d)}<br><span class="small">Orientación automática y prudente. La decisión es tuya.</span></div>`;
+
+  const alertas = l.filter(s => (s.dolor && s.dolor.hay) || (s.entum && s.entum.hay));
+  if (alertas.length) {
+    h += `<h3>Avisos</h3><div class="card"><table class="res">` + alertas.map(s => `<tr><td>${esc(fechaCorta(s.fecha))}<br><span class="small" style="font-weight:400">S${numSemana(s)} · ${esc(s.diaN || '')}</span></td><td>${s.dolor && s.dolor.hay ? '⚠ Dolor: ' + esc(s.dolor.zona || 'sin zona') + '<br>' : ''}${s.entum && s.entum.hay ? '⚠ Entumecimiento: ' + esc((s.entum.zonas || []).join(', ') || 'sin zona') + (s.entum.min ? ' · ' + s.entum.min + ' min' : '') : ''}</td></tr>`).join('') + `</table></div>`;
+  }
+
+  h += `<div class="card">${graficaLinea(l.map(s => ({ x: fechaCorta(s.fecha), y: s.fatiga || 0 })), 10, 'Cansancio por sesión (0–10)')}${graficaLinea(l.map(s => { const c = contar(s.ej); return { x: fechaCorta(s.fecha), y: c.t ? Math.round(c.h / c.t * 100) : 0 }; }), 100, 'Series completadas por sesión (%)')}</div>`;
+
+  const ev = evolEjercicios(l);
+  h += `<h3>Evolución por ejercicio</h3><p class="small">Mejor serie de la primera sesión y de la última.</p><div class="card"><table class="res">` + ev.map(e => {
+    const v = e.v.filter(x => x.m); if (!v.length) return `<tr><td>${esc(e.n)}</td><td class="soft">sin series hechas</td></tr>`;
+    const a = v[0], b = v[v.length - 1];
+    const fl = v.length < 2 ? '' : (puntosMejor(e.tipo, b.m) > puntosMejor(e.tipo, a.m) ? ' ▲' : (puntosMejor(e.tipo, b.m) < puntosMejor(e.tipo, a.m) ? ' ▼' : ' ='));
+    return `<tr><td>${esc(e.n)}</td><td>${v.length < 2 ? esc(txtMejor(e.tipo, a.m)) : esc(txtMejor(e.tipo, a.m)) + ' → ' + esc(txtMejor(e.tipo, b.m)) + fl}</td></tr>`;
+  }).join('') + `</table></div>`;
+
+  const notas = l.filter(s => s.notas);
+  if (notas.length) h += `<h3>Notas del atleta</h3><div class="card">` + notas.map(s => `<p><strong>${esc(fechaCorta(s.fecha))}:</strong> ${esc(s.notas)}</p>`).join('') + `</div>`;
+
+  h += `<div class="noprint"><button type="button" class="btn pri" data-act="imprimir">Imprimir o guardar en PDF</button><div style="height:10px"></div>
+    <button type="button" class="btn" data-act="copiarinf">Copiar resumen para que Claude lo analice</button>
+    ${S.txtCopia ? `<p class="small" style="margin-top:10px">No se pudo copiar solo. Selecciona todo el texto, cópialo y pégalo en el chat:</p><textarea id="txtcopia" readonly style="min-height:220px;font-size:14px">${esc(S.txtCopia)}</textarea>` : ''}</div>`;
+  return h;
+}
+
 function vistaCoach() {
   const enviadas = S.sesiones.filter(s => s.estado !== 'en_curso');
   const pend = enviadas.filter(s => !s.revisado).length;
   const curso = S.sesiones.length - enviadas.length;
   const ws = SEMS();
-  const iAct = ws.findIndex(w => resumenSemana(w).estado !== 'revisada');
-  const tabs = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">
+  const iAct = ws.findIndex(w => !w.archivada && resumenSemana(w).estado !== 'revisada');
+  const tabs = `<div class="tabs" style="grid-template-columns:repeat(2,1fr)">
     <button type="button" class="tab ${S.tabC === 'prog' ? 'on' : ''}" data-act="tabc" data-v="prog">Programación<small>${ws.length ? (iAct >= 0 ? 'semana ' + (iAct + 1) + ' en curso' : 'todo revisado') : 'falta cargar'}</small></button>
-    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Informes<small>${pend} sin revisar${curso ? ' · ' + curso + ' en curso' : ''}</small></button>
+    <button type="button" class="tab ${S.tabC === 'sesiones' ? 'on' : ''}" data-act="tabc" data-v="sesiones">Sesiones<small>${pend} sin revisar${curso ? ' · ' + curso + ' en curso' : ''}</small></button>
+    <button type="button" class="tab ${S.tabC === 'inf' ? 'on' : ''}" data-act="tabc" data-v="inf">Informes<small>evolución y PDF</small></button>
     <button type="button" class="tab ${S.tabC === 'copia' ? 'on' : ''}" data-act="tabc" data-v="copia">Copia<small>y acceso</small></button></div>`;
   let h = `${topbar()}<div class="wrap">${tabs}`;
   if (S.msg) h += `<div class="ok">${esc(S.msg)}</div>`;
 
   if (S.tabC === 'prog') h += vistaProgramacion();
+  if (S.tabC === 'inf') h += vistaInformes();
 
   if (S.tabC === 'sesiones') {
     h += `<div class="chips">` + [['pend', 'Sin revisar'], ['curso', 'En curso'], ['rev', 'Revisadas'], ['todas', 'Todas']].map(([v, t]) => `<button type="button" class="chip ${S.filtro === v ? 'on' : ''}" data-act="filtro" data-v="${v}">${t}</button>`).join('') + `</div>`;
@@ -737,7 +887,7 @@ async function ampliarSemana(id) {
     const raiz = sem[i].raiz || sem[i].id;
     const extras = sem.filter(w => w.raiz === raiz).length;
     const nueva = clonar(sem[i]);
-    nueva.id = raiz + 'x' + (extras + 1); nueva.raiz = raiz; nueva.ampliada = true;
+    nueva.id = raiz + 'x' + (extras + 1); nueva.raiz = raiz; nueva.ampliada = true; delete nueva.archivada;
     let pos = i; sem.forEach((w, k) => { if (w.id === raiz || w.raiz === raiz) pos = Math.max(pos, k); });
     sem.splice(pos + 1, 0, nueva);
     await S.B.db.update('plan', 'actual', { semanas: sem });
@@ -752,6 +902,23 @@ async function quitarSemana(id) {
     await S.B.db.update('plan', 'actual', { semanas: S.plan.semanas.filter(w => w.id !== id) });
     toast('Semana quitada ✓');
   } catch (e) { toast('No se pudo quitar la semana.'); }
+}
+
+async function archivarSemana(id, valor) {
+  try {
+    const sem = clonar(S.plan.semanas), w = sem.find(x => x.id === id);
+    if (!w) return;
+    if (valor && resumenSemana(w).estado !== 'revisada') { toast('Solo se puede archivar una semana revisada.'); return; }
+    if (valor) w.archivada = true; else delete w.archivada;
+    await S.B.db.update('plan', 'actual', { semanas: sem });
+    toast(valor ? 'Semana archivada ✓' : 'Semana desarchivada ✓');
+  } catch (e) { toast('No se pudo cambiar.'); }
+}
+
+async function copiarInforme() {
+  const t = textoParaClaude();
+  try { await navigator.clipboard.writeText(t); S.txtCopia = ''; toast('Resumen copiado ✓ Pégalo en el chat con Claude'); }
+  catch (e) { S.txtCopia = t; render(); }
 }
 
 async function copiaSeguridad() {
@@ -841,6 +1008,10 @@ document.addEventListener('click', async ev => {
     }
     case 'ampliar': return ampliarSemana(b.dataset.id);
     case 'quitarsem': return quitarSemana(b.dataset.id);
+    case 'archivar': return archivarSemana(b.dataset.id, true);
+    case 'desarchivar': return archivarSemana(b.dataset.id, false);
+    case 'imprimir': return window.print();
+    case 'copiarinf': return copiarInforme();
     case 'backup': return copiaSeguridad();
   }
 });
@@ -862,6 +1033,7 @@ document.addEventListener('input', ev => {
 document.addEventListener('change', async ev => {
   const t = ev.target;
   if (t.id === 'acepto') S.acepto = t.checked;
+  if (t.id === 'infsem') { S.infSem = t.value; S.txtCopia = ''; render(); }
   if (t.id === 'fecha' && t.value && S.draft) { S.draft.fecha = t.value; guardarLocal(); }
   if (t.id === 'planfile' && t.files && t.files[0]) importarPlan(t.files[0]);
 });
