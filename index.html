@@ -193,7 +193,7 @@ const CONFIG = {
   appId: "1:439754311440:web:2a6ad9137640cd27884795"
 };
 const COACH_EMAIL = 'rafa.parri@gmail.com';
-const VERSION = 'v3.0 · 27 oct 2026';
+const VERSION = 'v3.1 · 27 oct 2026';
 const FB = '10.12.2';
 
 /* ============ Utilidades ============ */
@@ -236,15 +236,23 @@ async function crearBackendFirebase() {
     import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')
   ]);
   const app = appM.initializeApp(CONFIG);
-  const auth = authM.getAuth(app);
+  // la sesión se guarda de forma permanente (IndexedDB y, si falla, localStorage)
+  const auth = authM.initializeAuth(app, { persistence: [authM.indexedDBLocalPersistence, authM.browserLocalPersistence, authM.browserSessionPersistence] });
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   const dbx = fsM.getFirestore(app);
   const ref = (c, id) => fsM.doc(dbx, c, id);
   return {
     auth: {
-      onChange: cb => authM.onAuthStateChanged(auth, u => cb(u ? { email: (u.email || '').toLowerCase(), verified: u.emailVerified } : null)),
+      onChange: cb => authM.onAuthStateChanged(auth, u => cb(u ? { email: (u.email || '').toLowerCase(), verified: u.emailVerified, pass: u.providerData.some(p => p.providerId === 'password') } : null)),
       sendLink: email => authM.sendSignInLinkToEmail(auth, email, { url: location.origin + location.pathname, handleCodeInApp: true }),
       isLink: () => authM.isSignInWithEmailLink(auth, location.href),
       finishLink: email => authM.signInWithEmailLink(auth, email, location.href),
+      signInPassword: (email, pw) => authM.signInWithEmailAndPassword(auth, email, pw),
+      setPassword: async pw => {
+        const u = auth.currentUser;
+        try { await authM.linkWithCredential(u, authM.EmailAuthProvider.credential(u.email, pw)); }
+        catch (e) { if (e && e.code === 'auth/provider-already-linked') await authM.updatePassword(u, pw); else throw e; }
+      },
       signOut: () => authM.signOut(auth)
     },
     db: {
@@ -292,6 +300,10 @@ function errorAuth(e) {
   if (c.includes('expired') || c.includes('invalid-action-code')) return 'El enlace ha caducado o ya se usó. Pide uno nuevo.';
   if (c.includes('invalid-email')) return 'El correo no es válido. Revisa que esté bien escrito.';
   if (c.includes('too-many') || c.includes('quota')) return 'Se han pedido demasiados enlaces hoy. Prueba más tarde o avisa a tu entrenador.';
+  if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found') || c.includes('invalid-login')) return 'Correo o contraseña incorrectos. Si aún no tienes contraseña, pide el enlace al correo.';
+  if (c.includes('weak-password')) return 'La contraseña es demasiado corta (mínimo 8 caracteres).';
+  if (c.includes('requires-recent-login')) return 'Por seguridad, entra de nuevo con el enlace del correo y vuelve a crear la contraseña.';
+  if (c.includes('operation-not-allowed')) return 'El acceso con contraseña no está activado en Firebase.';
   if (c.includes('network')) return 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
   return 'No se pudo completar el acceso. Inténtalo de nuevo.';
 }
@@ -466,10 +478,23 @@ function vistaLogin() {
     <label class="lab" for="email">Tu correo</label>
     <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" value="${esc(S.email)}" placeholder="nombre@correo.com">
     <div style="height:12px"></div>
-    <button type="button" class="btn pri" data-act="enviarenlace">${bloqueo ? 'Enviar otro enlace' : 'Enviarme el enlace de acceso'}</button>
-    <p class="small" style="margin-top:12px">No hace falta contraseña: te llega un enlace al correo y, al abrirlo, ya estás dentro.</p>
+    <label class="lab" for="pass" style="margin-top:2px">Contraseña (si ya la creaste)</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="Tu contraseña">
+    <div style="height:12px"></div>
+    <button type="button" class="btn pri" data-act="entrarpass">Entrar con contraseña</button>
+    <div style="height:10px"></div>
+    <button type="button" class="btn" data-act="enviarenlace">${bloqueo ? 'Enviar otro enlace' : 'No tengo contraseña: enviarme un enlace al correo'}</button>
+    <p class="small" style="margin-top:12px">La primera vez entras con el enlace del correo. Después, crea una contraseña dentro de la app y ya no necesitarás más enlaces.</p>
   </div>
   <p class="pie small">${VERSION}</p></div>`;
+}
+
+function tarjetaPass() {
+  if (!S.user || S.user.pass) return '';
+  return `<div class="card"><h3>Crea una contraseña</h3><p class="soft">Así no tendrás que pedir un enlace al correo cada vez que entres.</p>
+    <label class="lab" for="newpass">Contraseña nueva (mínimo 8 caracteres)</label>
+    <input id="newpass" type="password" autocomplete="new-password" placeholder="Elige una contraseña">
+    <div style="height:12px"></div><button type="button" class="btn pri" data-act="crearpass">Guardar contraseña</button></div>`;
 }
 
 function vistaConfirmar() {
@@ -589,7 +614,7 @@ function vistaPacienteInner() {
     return `<button type="button" class="tab ${x.id === w.id ? 'on' : ''} ${ab ? '' : 'bloq'}" data-act="sem" data-v="${esc(x.id)}">Semana ${k + 1}<small class="${r.estado === 'revisada' ? 'hecho' : ''}">${txt}</small></button>`;
   }).join('') + '</div>';
 
-  let h = `${topbar()}<div class="wrap">${tabs}${S.msg ? `<div class="ok">${esc(S.msg)}</div>` : ''}${semBtns}`;
+  let h = `${topbar()}<div class="wrap">${tabs}${S.msg ? `<div class="ok">${esc(S.msg)}</div>` : ''}${tarjetaPass()}${semBtns}`;
   if (!sel.abierta) {
     return h + `<div class="aviso">Este bloque se desbloquea cuando tu entrenador haya revisado todas las semanas del bloque anterior.</div><p class="pie small">${VERSION}</p></div>`;
   }
@@ -852,6 +877,7 @@ function vistaCoach() {
     <button type="button" class="tab ${S.tabC === 'copia' ? 'on' : ''}" data-act="tabc" data-v="copia">Copia<small>y acceso</small></button></div>`;
   let h = `${topbar()}<div class="wrap">${tabs}`;
   if (S.msg) h += `<div class="ok">${esc(S.msg)}</div>`;
+  h += tarjetaPass();
 
   if (S.tabC === 'prog') h += vistaProgramacion();
   if (S.tabC === 'inf') h += vistaInformes();
@@ -1016,6 +1042,21 @@ document.addEventListener('click', async ev => {
       try { await S.B.auth.sendLink(em); store.set('rpt_email', em); S.sent = em; }
       catch (e) { S.msg = errorAuth(e); }
       return render();
+    }
+    case 'entrarpass': {
+      const em = ($('#email').value || '').trim().toLowerCase(), pw = $('#pass').value || '';
+      if (!em || !em.includes('@') || !pw) { S.msg = 'Escribe tu correo y tu contraseña.'; S.email = em; return render(); }
+      S.email = em; S.msg = '';
+      try { await S.B.auth.signInPassword(em, pw); store.set('rpt_email', em); }
+      catch (e) { S.msg = errorAuth(e); render(); }
+      return;
+    }
+    case 'crearpass': {
+      const pw = ($('#newpass').value || '');
+      if (pw.length < 8) { toast('La contraseña debe tener al menos 8 caracteres.'); return; }
+      try { await S.B.auth.setPassword(pw); S.user.pass = true; toast('Contraseña guardada ✓ Ya puedes entrar con ella'); }
+      catch (e) { toast(errorAuth(e)); }
+      return;
     }
     case 'confirmaremail': {
       const em = ($('#email').value || '').trim().toLowerCase();
