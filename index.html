@@ -58,7 +58,7 @@
   .aviso { background:var(--warn2); border:1px solid var(--warn); border-radius:12px; padding:12px 14px; margin:14px 0; font-size:17px; }
   .ok { background:var(--teal2); border:1px solid var(--teal); border-radius:12px; padding:12px 14px; margin:14px 0; font-size:17px; }
   label.lab, .lab { display:block; font-size:15px; color:var(--soft); margin-bottom:4px; }
-  input[type=email], input[type=text], input[type=date], textarea, select {
+  input[type=email], input[type=text], input[type=password], input[type=date], textarea, select {
     width:100%; min-height:54px; padding:12px 14px; font-size:19px; font-family:inherit;
     border:1.5px solid var(--line); border-radius:12px; background:var(--alt); color:var(--ink);
   }
@@ -121,6 +121,10 @@
     body { background:#fff; color:#000; font-size:12pt; padding:0; }
     .card, details.ses { border:1px solid #999; break-inside:avoid; }
   }
+  .top .wrap > div:first-child { min-width:0; flex:1; }
+  .top .quien { word-break:normal; overflow-wrap:anywhere; font-size:13px; }
+  .top .acc { display:flex; gap:6px; flex:none; }
+  .top .acc .btn { white-space:nowrap; padding:8px 10px; font-size:15px; }
   .pie { text-align:center; margin-top:30px; }
   noscript { display:block; padding:20px; }
   /* ===== v3: diseño en tarjetas ===== */
@@ -193,7 +197,7 @@ const CONFIG = {
   appId: "1:439754311440:web:2a6ad9137640cd27884795"
 };
 const COACH_EMAIL = 'rafa.parri@gmail.com';
-const VERSION = 'v3.1 · 27 oct 2026';
+const VERSION = 'v3.2 · 28 oct 2026';
 const FB = '10.12.2';
 
 /* ============ Utilidades ============ */
@@ -226,7 +230,7 @@ const S = {
   plan: null, sesiones: [], consent: null,
   semanaId: null, diaId: null, draft: null, tabP: 'hoy', tabC: 'prog', filtro: 'pend',
   msg: '', aviso: '', lastSend: 0, email: store.get('rpt_email') || '', unsub: [], sent: null,
-  abiertas: {}, coms: {}, autoT: null, acepto: false, nueva: false, infSem: 'todas', txtCopia: ''
+  abiertas: {}, coms: {}, autoT: null, acepto: false, verPass: false, nueva: false, infSem: 'todas', txtCopia: ''
 };
 
 /* ============ Backend Firebase ============ */
@@ -465,7 +469,7 @@ function contar(ej) {
 /* ============ Vistas ============ */
 function topbar(extra) {
   return `<div class="top"><div class="wrap"><div><h1>RPT Rehab</h1><div class="quien">${esc(S.user ? S.user.email : '')}</div></div>
-    <div>${extra || ''}<button type="button" class="btn mini" data-act="salir">Salir</button></div></div></div>`;
+    <div class="acc">${extra || ''}<button type="button" class="btn mini" data-act="verpass">Contraseña</button><button type="button" class="btn mini" data-act="salir">Salir</button></div></div></div>`;
 }
 
 function vistaLogin() {
@@ -490,11 +494,13 @@ function vistaLogin() {
 }
 
 function tarjetaPass() {
-  if (!S.user || S.user.pass) return '';
-  return `<div class="card"><h3>Crea una contraseña</h3><p class="soft">Así no tendrás que pedir un enlace al correo cada vez que entres.</p>
+  if (!S.user) return '';
+  const hecha = store.get('rpt_pass_' + S.user.email) === '1';
+  if (hecha && !S.verPass) return '';
+  return `<div class="card"><h3>${hecha ? 'Cambiar contraseña' : 'Crea una contraseña'}</h3><p class="soft">Así no tendrás que pedir un enlace al correo cada vez que entres.</p>
     <label class="lab" for="newpass">Contraseña nueva (mínimo 8 caracteres)</label>
     <input id="newpass" type="password" autocomplete="new-password" placeholder="Elige una contraseña">
-    <div style="height:12px"></div><button type="button" class="btn pri" data-act="crearpass">Guardar contraseña</button></div>`;
+    <div style="height:12px"></div><button type="button" class="btn pri" data-act="crearpass">Guardar contraseña</button>${S.verPass ? '<div style="height:10px"></div><button type="button" class="btn" data-act="verpass">Cerrar</button>' : ''}</div>`;
 }
 
 function vistaConfirmar() {
@@ -600,11 +606,11 @@ function vistaPacienteInner() {
   const tabs = '';
   if (S.tabP === 'hist') {
     const l = S.sesiones.map(s => `<details class="ses"><summary>${cabSesion(s)}</summary><div class="cuerpo">${detalleSesion(s)}</div></details>`).join('');
-    return `${topbar()}<div class="wrap">${tabs}${l || '<div class="card">Aún no has enviado ninguna sesión.</div>'}<p class="pie small">${VERSION}</p></div>`;
+    return `${topbar()}<div class="wrap">${tabs}${tarjetaPass()}${l || '<div class="card">Aún no has enviado ninguna sesión.</div>'}<p class="pie small">${VERSION}</p></div>`;
   }
   const ws = SEMS();
   if (!ws.length) {
-    return `${topbar()}<div class="wrap">${tabs}<div class="card">${planAntiguo() ? 'Tu entrenador está actualizando el plan. Vuelve a abrir esta página en un rato.' : 'Tu entrenador aún no ha cargado el plan. Vuelve a abrir esta página más tarde.'}</div></div>`;
+    return `${topbar()}<div class="wrap">${tabs}${tarjetaPass()}<div class="card">${planAntiguo() ? 'Tu entrenador está actualizando el plan. Vuelve a abrir esta página en un rato.' : 'Tu entrenador aún no ha cargado el plan. Vuelve a abrir esta página más tarde.'}</div></div>`;
   }
   const sel = semanaSel(), w = sel.w;
   const semBtns = `<div class="tabs" style="grid-template-columns:repeat(3,1fr)">` + ws.map((x, k) => {
@@ -1051,10 +1057,11 @@ document.addEventListener('click', async ev => {
       catch (e) { S.msg = errorAuth(e); render(); }
       return;
     }
+    case 'verpass': S.verPass = !S.verPass; render(); if (S.verPass) { const n = $('#newpass'); if (n) n.scrollIntoView({ block: 'center' }); } return;
     case 'crearpass': {
       const pw = ($('#newpass').value || '');
       if (pw.length < 8) { toast('La contraseña debe tener al menos 8 caracteres.'); return; }
-      try { await S.B.auth.setPassword(pw); S.user.pass = true; toast('Contraseña guardada ✓ Ya puedes entrar con ella'); }
+      try { await S.B.auth.setPassword(pw); store.set('rpt_pass_' + S.user.email, '1'); S.verPass = false; toast('Contraseña guardada ✓ Ya puedes entrar con ella'); }
       catch (e) { toast(errorAuth(e)); }
       return;
     }
